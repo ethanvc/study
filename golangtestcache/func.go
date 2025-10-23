@@ -1,0 +1,3 @@
+package golangtestcache
+
+func Func() {}

@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx-https-echo
+    ports:
+      - "80:80"   # HTTP端口
+      - "443:443" # HTTPS端口
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d        # 配置文件目录
+      - ./nginx/ssl:/etc/nginx/ssl              # SSL证书目录
+      - ./nginx/html:/usr/share/nginx/html      # 静态文件目录
+    restart: always
+    networks:
+      - nginx-network
+
+networks:
+  nginx-network:
+    driver: bridge
+    

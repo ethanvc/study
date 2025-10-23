@@ -1,0 +1,243 @@
+{
+  "rules": [
+    {
+      "_comment": "_route_any example",
+      "api": "/abc/bcd",
+      "actions": [
+        {
+          "name": "_route_any"
+        }
+      ]
+    },
+    {
+      "_comment": "ref whole body content example",
+      "api": "/whole_body_content",
+      "actions": [
+        {
+          "name": "route_by_payment_id",
+          "args": "body"
+        }
+      ]
+    },
+    {
+      "api": "/abc/fast",
+      "actions": [
+        {
+          "name": "_consult",
+          "compute_key": "data"
+        },
+        {
+          "condition": "_in",
+          "condition_args": [
+            "compute.data.request_type",
+            "literal.2"
+          ],
+          "name": "_route_consult_and_retry"
+        },
+        {
+          "condition": "_in",
+          "condition_args": [
+            "compute.data.request_type",
+            "literal.3",
+            "literal.4"
+          ],
+          "name": "_route_any"
+        },
+        {
+          "condition": "_in",
+          "condition_args": [
+            "compute.data.request_type",
+            "literal.1"
+          ],
+          "name": "_route_routing_log",
+          "args": [
+            "literal.2",
+            "literal.123456",
+            "body.BusMsg.EndToEndId"
+          ]
+        }
+      ]
+    },
+    {
+      "api": "/abc/query_payment",
+      "actions": [
+        {
+          "name": "route_by_payment_id",
+          "args": [
+            "body.payment_id"
+          ]
+        }
+      ]
+    },
+    {
+      "api": "/full_function_in_unit_0",
+      "actions": [
+        {
+          "name": "_route_any"
+        }
+      ],
+      "prefer_unit_id": 0
+    },
+    {
+      "_comment": "some request stateless, some depend order",
+      "api": "/api/bcb/reverse_query",
+      "actions": [
+        {
+          "name": "_route_any",
+          "condition": "_hasprefix",
+          "condition_args": [
+            "body.payload.customer_code",
+            "literal.ALIPAY"
+          ]
+        },
+        {
+          "name": "_route_consult_and_retry"
+        }
+      ]
+    },
+    {
+      "_comment": "request already know its unit",
+      "api": "/api/internal/reverse_top_up/create",
+      "actions": [
+        {
+          "name": "_write_routing_log",
+          "args": [
+            "literal.payment",
+            "body.business_id",
+            "body.merchant_order_id",
+            "header.X-UNIT-ID"
+          ]
+        },
+        {
+          "name": "_route_to",
+          "args": [
+            "header.X-UNIT-ID"
+          ]
+        }
+      ]
+    },
+    {
+      "_comment": "request body encoded",
+      "api": "/api/laposi/notify",
+      "actions": [
+        {
+          "name": "_decode64",
+          "args": [
+            "body.payload"
+          ]
+        },
+        {
+          "name": "_trimprefix",
+          "args": [
+            "compute._",
+            "XXM",
+            "YYM"
+          ]
+        },
+        {
+          "name": "route_by_encrypt_payment_id",
+          "args": [
+            "compute._"
+          ],
+          "condition": "_zero!",
+          "condition_args": [
+            "compute._"
+          ]
+        },
+        {
+          "name": "_route_any"
+        }
+      ]
+    },
+    {
+      "api": "/api/refund",
+      "actions": [
+        {
+          "name": "route_by_payment_id",
+          "args": [
+            "body.payment_id"
+          ],
+          "condition": "_zero!",
+          "condition_args": [
+            "body.payment_id"
+          ],
+          "terminal": false
+        },
+        {
+          "name": "route_by_txn_id",
+          "args": [
+            "body.txn_id"
+          ],
+          "condition_and": [
+            {
+              "condition": "_zero!",
+              "condition_args": [
+                "body.txn_id"
+              ]
+            },
+            {
+              "condition": "_is_route_result_set!"
+            }
+          ],
+          "terminal": false
+        },
+        {
+          "name": "_write_routing_log",
+          "args": [
+            "literal.1",
+            "body.mch_code",
+            "body.mch_order_id"
+          ]
+        }
+      ]
+    },
+    {
+      "api": "/api/bca_transfer_va_inquiry",
+      "actions": [
+        {
+          "name": "_route_any",
+          "condition": "_hasprefix",
+          "condition_args": [
+            "body.vitual_account_id",
+            "literal.3333",
+            "literal.4444",
+            "literal.5555"
+          ]
+        },
+        {
+          "name": "_route_consult_and_retry"
+        }
+      ]
+    },
+    {
+      "api": "/api/get_recon_info",
+      "actions": [
+        {
+          "name": "route_by_payment_id",
+          "args": [
+            "body.column_value"
+          ],
+          "condition": "_eq",
+          "condition_args": [
+            "body.column_name",
+            "payment_id"
+          ]
+        },
+        {
+          "name": "route_by_txn_id",
+          "args": [
+            "body.column_value"
+          ],
+          "condition": "_eq",
+          "condition_args": [
+            "body.column_name",
+            "transaction_id"
+          ]
+        },
+        {
+          "name": "_route_any"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "_comment": "实际场景中，一般通过全局流量比例控制，较少有需求要单独做流量调度，因此这种顺序匹配的性能可以接受",
+  "traffic_control": [
+    {
+      "desc": "charge_priority_to_unit0",
+      "condition": "_in",
+      "condition_args": [
+        "rule.api",
+        "literal./abc/bcd"
+      ],
+      "unit1_ratio": 0
+    },
+    {
+      "desc": "test_init_txn",
+      "condition_and": [
+        {
+          "condition": "_in",
+          "condition_args": [
+            "body.user_id",
+            "literal.33333"
+          ]
+        },
+        {
+          "condition": "_in",
+          "condition_args": [
+            "rule.api",
+            "literal./v4/pay"
+          ]
+        }
+      ],
+      "unit1_ratio": 100.0
+    }
+  ]
+}
