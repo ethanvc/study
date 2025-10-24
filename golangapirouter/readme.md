@@ -47,6 +47,9 @@ MSFE 全称为 MSHA-FRONT-END
 - [饿了么异地多活技术实现（二）API-Router的设计与实现](https://zhuanlan.zhihu.com/p/32587960)
 ## 字节跳动 - ByteArch（多活架构）
 
+## 如何落地基于区域维度的多活单元化方案
+https://github.com/Nepxion/Discovery/wiki/%E5%A6%82%E4%BD%95%E8%90%BD%E5%9C%B0%E5%9F%BA%E4%BA%8E%E5%8C%BA%E5%9F%9F%E7%BB%B4%E5%BA%A6%E7%9A%84%E5%A4%9A%E6%B4%BB%E5%8D%95%E5%85%83%E5%8C%96%E6%96%B9%E6%A1%88
+
 ## 存储层多活
 TDSQL
 
