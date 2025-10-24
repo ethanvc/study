@@ -9,7 +9,42 @@
    1. 可以选user_id、商户订单号，他们的区别是？
 3. 不同环境下，去除参数的前缀的长度不同，如何支持？可以通过condition对环境值做判断。
 
+# 行业调研
+## 蚂蚁集团单元化架构
+https://mp.weixin.qq.com/s/MT-Pe2WCsC4kJHY_qeoAuA
+
+## 存储层多活
+TDSQL
+## 阿里 MSHA异地多活架构
+关键技术：
+RZone (路由规则引擎)
+  ├─ 路由键提取 (类似 Preprocessor)
+  ├─ 规则匹配 (类似 Strategy)
+  └─ 单元选择 (类似 Unit ID)
+
+MSHA (多活容灾平台)
+  ├─ 流量调度 (类似 DR Platform)
+  ├─ 数据同步
+  └─ 切流验证
+参考资料：
+- [MSHA实现异地双活](https://help.aliyun.com/document_detail/2929420.html)
+- [多活容灾MSHA产品介绍](https://apsara-doc.oss-cn-hangzhou.aliyuncs.com/apsara-pdf/enterprise/v_3_16_0_20220117/msha/zh/enterprise-product-introduction.pdf)
+  - 同城机房物理距离通常 < 50km，跨机房的网络延迟较小（RT < 2 ms）
+
+## 饿了么异地多活技术实现（二）API-Router的设计与实现
+
+- [饿了么异地多活技术实现（二）API-Router的设计与实现](https://zhuanlan.zhihu.com/p/32587960)
+## 字节跳动 - ByteArch（多活架构）
+
+
 # 需求分析
+**多活的本质是解决数据的可用性问题**。
+数据的可用性归纳为解决如下问题：
+1. 不能容忍数据不一致的，只能去主所在的地方处理。
+2. 可以容忍数据不一致的，优先就近处理。
+3. 有损容忍数据不一致的，优先去主所在的地方处理。
+4. 为了降低数据不一致带来的负面影响，可以通过各种缓存处理措施，加快数据一致性进度。
+
 当gateway收到一个请求之后，需要判断，该请求应该转发到后端哪一个单元，存在如下场景：
 1. fix：请求需要指定的单元进行处理，且gateway能够判断具体的单元编号。
 2. any：请求在任一单元可以处理。
