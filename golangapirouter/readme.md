@@ -13,28 +13,42 @@
 ## 蚂蚁集团单元化架构
 https://mp.weixin.qq.com/s/MT-Pe2WCsC4kJHY_qeoAuA
 
-## 存储层多活
-TDSQL
-## 阿里 MSHA异地多活架构
-关键技术：
-RZone (路由规则引擎)
-  ├─ 路由键提取 (类似 Preprocessor)
-  ├─ 规则匹配 (类似 Strategy)
-  └─ 单元选择 (类似 Unit ID)
+## MSHA 异地多活架构 原AppActive 阿里
+MSFE 全称为 MSHA-FRONT-END
+1. 数据中心路由和app路由。
+2. 数据中心切流和应用切流。
+3. 全局业务、中心业务、共享业务。
 
-MSHA (多活容灾平台)
-  ├─ 流量调度 (类似 DR Platform)
-  ├─ 数据同步
-  └─ 切流验证
 参考资料：
+- [AppActive: An Open-Source Multi-Active Disaster Tolerance Architecture](https://www.alibabacloud.com/blog/599067)
+- [github open source appactive](https://github.com/alibaba/Appactive)
+- [应用多活技术白皮书](https://developer.aliyun.com/ebook/3/read?spm=a2c6h.26392459.ebook-detail.2.202c51a73xgmjx)
+  - 灾备冗杂的局限性：切换没信心；资源浪费；单机房资源瓶颈；
+- [应用多活AppActive简介](http://www.vinin.me/2022/01/28/%E5%BA%94%E7%94%A8%E5%A4%9A%E6%B4%BBAppActive%E7%AE%80%E4%BB%8B/)
+- [路由计算规则](https://help.aliyun.com/zh/ahas/user-guide/configure-inbound-traffic-scheduling-rules?spm=a2c4g.11186623.0.i3)
+  - 重点参考，有对api做路由规则配置的方法说明
+- [通过MSHA实现异地双活](https://help.aliyun.com/document_detail/2929420.html)
 - [MSHA实现异地双活](https://help.aliyun.com/document_detail/2929420.html)
 - [多活容灾MSHA产品介绍](https://apsara-doc.oss-cn-hangzhou.aliyuncs.com/apsara-pdf/enterprise/v_3_16_0_20220117/msha/zh/enterprise-product-introduction.pdf)
   - 同城机房物理距离通常 < 50km，跨机房的网络延迟较小（RT < 2 ms）
+
+## OPPO 多活架构
+参考资料：
+- [超3亿活跃用户的多活架构，数据同步与流量调度怎么做？](https://zhuanlan.zhihu.com/p/407942332)
+
+## Apache APISIX
+为了实现路由动态配置，Apache APISIX 做了两件事：
+
+在 Nginx 配置⽂件⾥⾯配置单个 server，这个 server ⾥⾯只有⼀个 location。我们把这个 location作为主⼊⼝，这样所有的请求都会⾛到这个地⽅上来。
+我们⽤ Lua 完成路由分发的⼯作。Apache APISIX 的路由分发模块，⽀持在运⾏时增减路由，这样就能动态配置路由了。
 
 ## 饿了么异地多活技术实现（二）API-Router的设计与实现
 
 - [饿了么异地多活技术实现（二）API-Router的设计与实现](https://zhuanlan.zhihu.com/p/32587960)
 ## 字节跳动 - ByteArch（多活架构）
+
+## 存储层多活
+TDSQL
 
 
 # 需求分析
@@ -109,3 +123,5 @@ Action封装了一个动作，该动作对输入进行处理，并产生一些�
    1. 优点是，系统的缓存一致性会比较好。
 
 结论：有单号选单号，没单号选用户ID，最后选随机数。
+
+## 扩展到任意多个单元的瓶颈？如何解决。
