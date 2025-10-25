@@ -1,8 +1,11 @@
 {
-  "_comment": "实际场景中，一般通过全局流量比例控制，较少有需求要单独做流量调度，因此这种顺序匹配的性能可以接受",
+  "_comment": "实际场景中，一般通过全局流量比例控制，较少有需求要单独做流量调度",
   "traffic_control": [
     {
       "desc": "charge_priority_to_unit0",
+      "static_patterns": [
+        ".*"
+      ],
       "condition": "_in",
       "condition_args": [
         "rule.api",

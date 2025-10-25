@@ -36,7 +36,7 @@ type Action struct {
 type ActionResult struct{}
 
 type IFunc interface {
-	Call(ctx context.Context, cxCtx *RuleExecutionState, args []string) (string, error)
+	Call(ctx context.Context, cxCtx *ExecutionState, args []string) (string, error)
 }
 
 type ParamPathPrefix int

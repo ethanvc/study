@@ -24,7 +24,7 @@ func (f *builtinIn) VerifyParamRefs(ctx context.Context, paramRef []ParamRef) er
 	return nil
 }
 
-func (f *builtinIn) Call(ctx context.Context, execCtx *RuleExecutionState, args []string) ([]string, error) {
+func (f *builtinIn) Call(ctx context.Context, execCtx *ExecutionState, args []string) ([]string, error) {
 	if slices.Contains(args[1:], args[0]) {
 		return []string{ExprValueTrue}, nil
 	}
@@ -45,7 +45,7 @@ func (f *builtinHasPrefix) VerifyParamRefs(ctx context.Context, paramRef []Param
 	return nil
 }
 
-func (f *builtinHasPrefix) Call(ctx context.Context, execCtx *RuleExecutionState, args []string) ([]string, error) {
+func (f *builtinHasPrefix) Call(ctx context.Context, execCtx *ExecutionState, args []string) ([]string, error) {
 	for _, arg := range args[1:] {
 		if strings.HasPrefix(args[0], arg) {
 			return []string{ExprValueTrue}, nil
@@ -65,6 +65,6 @@ func (f *builtinRouteByRoutingLog) VerifyParamRefs(ctx context.Context, paramRef
 	return nil
 }
 
-func (f *builtinRouteByRoutingLog) Call(ctx context.Context, execCtx *RuleExecutionState, args []string) (string, error) {
+func (f *builtinRouteByRoutingLog) Call(ctx context.Context, execCtx *ExecutionState, args []string) (string, error) {
 	return "", nil
 }

@@ -7,15 +7,15 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// RuleExecutor execute rule and fill result to RuleExecutionState
-type RuleExecutor struct {
+// Executor execute rule and fill result to ExecutionState
+type Executor struct {
 }
 
-func NewRuleExecutor() *RuleExecutor {
-	return &RuleExecutor{}
+func NewExecutor() *Executor {
+	return &Executor{}
 }
 
-func (exec *RuleExecutor) Execute(ctx context.Context, state *RuleExecutionState) error {
+func (exec *Executor) Execute(ctx context.Context, state *ExecutionState) error {
 	for i, action := range state.rule.Actions {
 		state.actionIndex = i
 		ok, err := exec.evaluateConditions(ctx, state, action)
@@ -40,11 +40,11 @@ func (exec *RuleExecutor) Execute(ctx context.Context, state *RuleExecutionState
 	return nil
 }
 
-func (exec *RuleExecutor) evaluateConditions(ctx context.Context, execCtx *RuleExecutionState, action *Action) (bool, error) {
+func (exec *Executor) evaluateConditions(ctx context.Context, execCtx *ExecutionState, action *Action) (bool, error) {
 	return true, nil
 }
 
-type RuleExecutionState struct {
+type ExecutionState struct {
 	ProtocolSpec ProtocolSpec
 	Header       Header
 	Body         Body
@@ -55,12 +55,12 @@ type RuleExecutionState struct {
 	unitIds      []int
 }
 
-func (exec *RuleExecutionState) SetRoutingResult(routeType RouteType, unitIds []int) {
+func (exec *ExecutionState) SetRoutingResult(routeType RouteType, unitIds []int) {
 	exec.routeType = routeType
 	exec.unitIds = unitIds
 }
 
-func (exec *RuleExecutionState) ComputeParams(ctx context.Context, paramRefs []ParamRef) []string {
+func (exec *ExecutionState) ComputeParams(ctx context.Context, paramRefs []ParamRef) []string {
 	args := make([]string, len(paramRefs))
 	for i, paramRef := range paramRefs {
 		switch paramRef.Prefix {
@@ -80,7 +80,7 @@ func (exec *RuleExecutionState) ComputeParams(ctx context.Context, paramRefs []P
 	return args
 }
 
-func (exec *RuleExecutionState) getComputeValue(p string) string {
+func (exec *ExecutionState) getComputeValue(p string) string {
 	dotIndex := strings.Index(p, ".")
 	var restPath string
 	if dotIndex == -1 {

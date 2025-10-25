@@ -12,8 +12,8 @@ func Test_Basic(t *testing.T) {
 	ctx := context.Background()
 	req := httptest.NewRequest("GET", "/", nil)
 	proto := NewHttpProtocolSpec(req)
-	executor := NewRuleExecutor()
-	state := &RuleExecutionState{
+	executor := NewExecutor()
+	state := &ExecutionState{
 		ProtocolSpec: proto,
 	}
 	err := executor.Execute(ctx, state)

@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-func NewRuleExecutionStateFromHttpRequest(req *http.Request) *RuleExecutionState {
-	state := &RuleExecutionState{
+func NewRuleExecutionStateFromHttpRequest(req *http.Request) *ExecutionState {
+	state := &ExecutionState{
 		ProtocolSpec: NewHttpProtocolSpec(req),
 		Header:       req.Header,
 		Body: &HttpBody{
