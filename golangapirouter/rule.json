@@ -15,7 +15,7 @@
       "actions": [
         {
           "name": "route_by_payment_id",
-          "args": "body"
+          "args": ["body"]
         }
       ]
     },

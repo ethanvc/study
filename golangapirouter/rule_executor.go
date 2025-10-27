@@ -2,17 +2,94 @@ package golangapirouter
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/tidwall/gjson"
 )
 
+func (rule *Rule) init(ruleConf *RuleConfig) error {
+	rule.Api = ruleConf.Api
+	return nil
+}
+
 // Executor execute rule and fill result to ExecutionState
 type Executor struct {
+	funcs map[string]IFunc
 }
 
 func NewExecutor() *Executor {
-	return &Executor{}
+	return &Executor{
+		funcs: make(map[string]IFunc),
+	}
+}
+
+func (exec *Executor) MustRegisterFunc(f IFunc) {
+	ff := exec.funcs[f.Name()]
+	if ff != nil {
+		panic("duplicate function name: " + f.Name())
+	}
+	exec.funcs[f.Name()] = f
+}
+
+func (exec *Executor) ParseRuleConfig(ruleConf *RuleConfig) (*Rule, error) {
+	var err error
+	rule := &Rule{}
+	rule.Api = ruleConf.Api
+	rule.Actions = make([]*Action, len(ruleConf.Actions))
+	for i, actionConf := range ruleConf.Actions {
+		action := &Action{
+			ComputeKey: actionConf.ComputeKey,
+			Terminal:   actionConf.Terminal,
+		}
+		action.Action, err = exec.parseFuncCall(actionConf.Name, actionConf.Args)
+		if err != nil {
+			return nil, err
+		}
+		action.Condition, err = exec.parseFuncCall(actionConf.Condition, actionConf.ConditionArgs)
+		if err != nil {
+			return nil, err
+		}
+		action.ConditionAnd = make([]*FuncExpr, len(actionConf.ConditionAnd))
+		for i, condition := range actionConf.ConditionAnd {
+			action.ConditionAnd[i], err = exec.parseFuncCall(condition.Name, condition.Args)
+			if err != nil {
+				return nil, err
+			}
+		}
+		action.ConditionOr = make([]*FuncExpr, len(action.ConditionOr))
+		for i, condition := range actionConf.ConditionOr {
+			action.ConditionOr[i], err = exec.parseFuncCall(condition.Name, condition.Args)
+			if err != nil {
+				return nil, err
+			}
+		}
+		rule.Actions[i] = action
+	}
+	return rule, nil
+}
+
+func (exec *Executor) parseFuncCall(name string, paramRefs []string) (*FuncExpr, error) {
+	if name == "" && len(paramRefs) == 0 {
+		return nil, nil
+	}
+	expr := &FuncExpr{}
+	if strings.HasSuffix(name, "!") {
+		expr.Not = true
+		name = name[:len(name)-1]
+	}
+	expr.F = exec.funcs[name]
+	if expr.F == nil {
+		return nil, fmt.Errorf("function %s not found", name)
+	}
+	for _, ref := range paramRefs {
+		paramRef, err := ParseParamRef(ref)
+		if err != nil {
+			return nil, err
+		}
+		expr.ParamRefs = append(expr.ParamRefs, paramRef)
+	}
+	return expr, nil
 }
 
 func (exec *Executor) Execute(ctx context.Context, state *ExecutionState) error {
@@ -45,14 +122,14 @@ func (exec *Executor) evaluateConditions(ctx context.Context, execCtx *Execution
 }
 
 type ExecutionState struct {
-	ProtocolSpec ProtocolSpec
-	Header       Header
-	Body         Body
-	rule         *Rule
-	actionIndex  int
-	compute      map[string]string
-	routeType    RouteType
-	unitIds      []int
+	protoSpec   ProtocolSpec
+	header      Header
+	body        Body
+	rule        *Rule
+	actionIndex int
+	compute     map[string]string
+	routeType   RouteType
+	unitIds     []int
 }
 
 func (exec *ExecutionState) SetRoutingResult(routeType RouteType, unitIds []int) {
@@ -67,13 +144,13 @@ func (exec *ExecutionState) ComputeParams(ctx context.Context, paramRefs []Param
 		case ParamPathPrefixCompute:
 			args[i] = exec.getComputeValue(paramRef.Path)
 		case ParamPathPrefixHeader:
-			args[i] = exec.Header.Get(paramRef.Path)
+			args[i] = exec.header.Get(paramRef.Path)
 		case ParamPathPrefixLiteral:
 			args[i] = paramRef.Path
 		case ParamPathPrefixBody:
-			args[i] = exec.Body.Get(paramRef.Path)
+			args[i] = exec.body.Get(paramRef.Path)
 		case ParamPathPrefixProto:
-			args[i] = exec.ProtocolSpec.Get(paramRef.Path)
+			args[i] = exec.protoSpec.Get(paramRef.Path)
 		}
 
 	}
