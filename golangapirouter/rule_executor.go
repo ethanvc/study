@@ -19,9 +19,15 @@ type Executor struct {
 }
 
 func NewExecutor() *Executor {
-	return &Executor{
+	executor := &Executor{
 		funcs: make(map[string]IFunc),
 	}
+	executor.MustRegisterFunc(builtinIn{})
+	executor.MustRegisterFunc(builtinHasPrefix{})
+	executor.MustRegisterFunc(builtinConsult{})
+	executor.MustRegisterFunc(builtinRouteConsultAndRetry{})
+	executor.MustRegisterFunc(builtinRouteAny{})
+	return executor
 }
 
 func (exec *Executor) MustRegisterFunc(f IFunc) {
