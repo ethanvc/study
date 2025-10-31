@@ -23,6 +23,16 @@ type RadixNode[Value any] struct {
 	pattern     string
 }
 
+func (n *RadixNode[Value]) reset() {
+	n.children = nil
+	n.paramChild = nil
+	n.patternNode = PatternNode{}
+	n.valEnabled = false
+	var defaultVal Value
+	n.val = defaultVal
+	n.pattern = ""
+}
+
 func (n *RadixNode[Value]) isParamNode() bool {
 	return n.patternNode.ParamType
 }
@@ -128,8 +138,31 @@ func (t *RadixTree[Processor, Value]) insert(newNodes []PatternNode) (*RadixNode
 		}
 	}
 	if newPatternNode.ParamType {
-
+		panic("param node will never be plain node here")
 	}
+	prefix := longestCommonPrefix(n.patternNode.NodeVal, newPatternNode.NodeVal)
+	if n.patternNode.NodeVal == prefix {
+		newNodes[i].NodeVal = newPatternNode.NodeVal[len(prefix):]
+		head, tail := patternNodesToRadixNodes[Value](newNodes)
+		n.insertChild(head)
+		return tail, nil
+	}
+	if prefix == newPatternNode.NodeVal {
+		oldChild := *n
+		oldChild.patternNode.NodeVal = newPatternNode.NodeVal[len(prefix):]
+		n.reset()
+		n.insertChild(&oldChild)
+		return n, nil
+	}
+	oldChild := *n
+	oldChild.patternNode.NodeVal = n.patternNode.NodeVal[len(prefix):]
+	n.reset()
+	n.patternNode.NodeVal = prefix
+	n.insertChild(&oldChild)
+	newNodes[i].NodeVal = newPatternNode.NodeVal[len(prefix):]
+	head, tail := patternNodesToRadixNodes[Value](newNodes)
+	n.insertChild(head)
+	return tail, nil
 }
 
 func (t *RadixTree[Processor, Value]) MustInsert(pattern string, val Value) {
