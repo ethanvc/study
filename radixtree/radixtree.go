@@ -149,10 +149,16 @@ func (t *RadixTree[Processor, Value]) insert(newNodes []PatternNode) (*RadixNode
 	}
 	if prefix == newPatternNode.NodeVal {
 		oldChild := *n
-		oldChild.patternNode.NodeVal = newPatternNode.NodeVal[len(prefix):]
+		oldChild.patternNode.NodeVal = oldChild.patternNode.NodeVal[len(prefix):]
 		n.reset()
+		n.patternNode.NodeVal = prefix
 		n.insertChild(&oldChild)
-		return n, nil
+		if i == len(newNodes)-1 {
+			return n, nil
+		}
+		head, tail := patternNodesToRadixNodes[Value](newNodes[i+1:])
+		n.insertChild(head)
+		return tail, nil
 	}
 	oldChild := *n
 	oldChild.patternNode.NodeVal = n.patternNode.NodeVal[len(prefix):]

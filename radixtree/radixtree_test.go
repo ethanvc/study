@@ -45,4 +45,8 @@ func Test_PatternParam(t *testing.T) {
 	require.EqualValues(t, 0, len(params))
 	require.Equal(t, 5, n.GetValue())
 
+	n, params, err = tree.Search("/api3/bcde/33", nil)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, len(params))
+	require.Equal(t, 6, n.GetValue())
 }
