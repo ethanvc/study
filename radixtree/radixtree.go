@@ -118,44 +118,17 @@ func (t *RadixTree[Processor, Value]) insert(newNodes []PatternNode) (*RadixNode
 
 		}
 	}
-	if n.patternNode.ParamType {
+	if n.isParamNode() {
+		// parent node must be a plain node
 		if newPatternNode.ParamType {
-			return nil, fmt.Errorf("param placeholder conflict, insert pattern is %s, exist placeholder is %s",
-				getPattern(newNodes), n.patternNode.NodeVal)
+			return nil, fmt.Errorf(" param node have different placeholder(old=%s, new=%s)",
+				n.patternNode.NodeVal, newPatternNode.NodeVal)
 		} else {
-			panic("never come here")
+			panic("parent node is plain node, child node will never be plain node")
 		}
-	} else {
-		if newPatternNode.ParamType {
-			panic("never come here")
-		} else {
-			prefix := longestCommonPrefix(n.patternNode.NodeVal, newPatternNode.NodeVal)
-			if prefix != n.patternNode.NodeVal {
-				// split existing node to common parent node and child node
-				childOld := *n
-				childOld.patternNode.NodeVal = n.patternNode.NodeVal[len(prefix):]
-				n.children = make(map[byte]*RadixNode[Value])
-				n.paramChild = nil
-				n.patternNode.NodeVal = prefix
-				var defaultVal Value
-				n.val = defaultVal
-				n.valEnabled = false
-				n.pattern = ""
-				n.children[getFirstByte(childOld.patternNode.NodeVal)] = &childOld
-			}
-			// construct new child and put it to node n
-			newNodes[i].NodeVal = newNodes[i].NodeVal[len(prefix):]
-			head, last := patternNodesToRadixNodes[Value](newNodes[i:])
-			if n.children == nil {
-				n.children = make(map[byte]*RadixNode[Value])
-			}
-			if head.patternNode.ParamType {
-				n.paramChild = head
-			} else {
-				n.children[getFirstByte(head.patternNode.NodeVal)] = head
-			}
-			return last, nil
-		}
+	}
+	if newPatternNode.ParamType {
+
 	}
 }
 
