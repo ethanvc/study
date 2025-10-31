@@ -50,3 +50,13 @@ func Test_PatternParam(t *testing.T) {
 	require.EqualValues(t, 1, len(params))
 	require.Equal(t, 6, n.GetValue())
 }
+
+func Test_ParamPatterns(t *testing.T) {
+	tree := NewGinRadixTree[int]()
+	tree.MustInsert("/api/bb/cc/:xx/updates", 0)
+	tree.MustInsert("/api/xx/ee/add/:qq/action", 0)
+	tree.MustInsert("/api/xx/ee/add/:qq/ui", 0)
+	tree.MustInsert("/api/xx/ee/ff/:hh/action", 0)
+	tree.MustInsert("/api/ww/cc-dd/:gg/advices", 5)
+	tree.MustInsert("/api/ww/cc-dd/:gg/advices", 5)
+}
