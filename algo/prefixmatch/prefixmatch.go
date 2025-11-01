@@ -40,17 +40,9 @@ func (n *Node) candidateChild(pattern string) *Node {
 	return n.children[pattern[0]]
 }
 
-func (n *Node) insertChild(child *Node) {
-	if n.children == nil {
-		n.children = make(map[byte]*Node)
-	}
-	n.children[child.part[0]] = child
-}
-
 func (n *Node) insert(pattern string, part string, value int) error {
 	prefix := longestCommonPrefix(n.part, part)
-	if len(prefix) == len(part) {
-		// new pattern match current node
+	if len(prefix) == len(n.part) {
 		if n.valueValid {
 			return fmt.Errorf("%s already exist", pattern)
 		}
@@ -58,24 +50,25 @@ func (n *Node) insert(pattern string, part string, value int) error {
 		n.value = value
 		return nil
 	}
-	newChildPart := part[len(prefix):]
-	if len(prefix) == len(n.part) {
-		// existing node fully match new pattern prefix
-		candidateChild := n.candidateChild(newChildPart)
-		if candidateChild == nil {
-			child := newNode(pattern, newChildPart, value)
-			n.insertChild(child)
+	newPart := part[len(prefix):]
+	if len(n.part) < len(prefix) {
+		// existing pattern short then new pattern
+		candidate := n.candidateChild(newPart)
+		if candidate == nil {
+			childNode := newNode(pattern, part[len(prefix):], value)
+			n.children[childNode.part[0]] = childNode
 			return nil
 		}
-		return candidateChild.insert(pattern, newChildPart, value)
+		return candidate.insert(pattern, newPart, value)
 	}
-	// need split current node
+	// existing pattern longer then new pattern, split current node
 	oldChild := *n
-	oldChild.part = n.part[len(prefix):]
+	oldChild.part = oldChild.part[len(prefix):]
 	n.reset()
-	n.insertChild(&oldChild)
-	newChild := newNode(pattern, newChildPart, value)
-	n.insertChild(newChild)
+	n.part = prefix
+	n.children[oldChild.part[0]] = &oldChild
+	newChild := newNode(pattern, newPart, value)
+	n.children[newChild.part[0]] = newChild
 	return nil
 }
 
