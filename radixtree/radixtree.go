@@ -102,8 +102,16 @@ func (t *RadixTree[Processor, Value]) insert(newNodes []PatternNode) (*RadixNode
 	var i int
 	var newPatternNode PatternNode
 	for i, newPatternNode = range newNodes {
-		if n.patternNode != newPatternNode {
-			break
+		if n.isParamNode() {
+			if n.patternNode != newPatternNode {
+				break
+			}
+		} else {
+
+			prefix := longestCommonPrefix(newPatternNode.NodeVal, n.patternNode.NodeVal)
+			if n.patternNode != newPatternNode {
+				break
+			}
 		}
 		if i == len(newNodes)-1 {
 			if n.valEnabled {
