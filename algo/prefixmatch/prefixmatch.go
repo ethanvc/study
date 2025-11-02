@@ -178,8 +178,7 @@ func longestCommonPrefix(a, b string) string {
 }
 
 type NodeChildren struct {
-	FirstBytes string
-	Nodes      []*Node
+	Nodes []*Node
 }
 
 func (c *NodeChildren) insert(n *Node) {
@@ -187,11 +186,34 @@ func (c *NodeChildren) insert(n *Node) {
 	if existNode != nil {
 		panic("duplicate node")
 	}
-	c.FirstBytes += n.Part[0:1]
-	c.Nodes = append(c.Nodes, existNode)
+	c.Nodes = append(c.Nodes, n)
 }
 
 func (c *NodeChildren) getCandidateChild(pattern string) *Node {
+	patternCh := pattern[0]
+	for _, n := range c.Nodes {
+		if n.Part[0] == patternCh {
+			return n
+		}
+	}
+	return nil
+}
+
+type NodeChildren2 struct {
+	FirstBytes string
+	Nodes      []*Node
+}
+
+func (c *NodeChildren2) insert(n *Node) {
+	existNode := c.getCandidateChild(n.Part)
+	if existNode != nil {
+		panic("duplicate node")
+	}
+	c.FirstBytes += n.Part[0:1]
+	c.Nodes = append(c.Nodes, n)
+}
+
+func (c *NodeChildren2) getCandidateChild(pattern string) *Node {
 	patternCh := pattern[0]
 	for i, ch := range c.FirstBytes {
 		if patternCh == byte(ch) {

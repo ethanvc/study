@@ -441,7 +441,7 @@ func TestTreeSearch_Internal(t *testing.T) {
 
 // go test -run=^$ -bench='^Benchmark_NodeChildren_Find$' -benchmem
 func Benchmark_NodeChildren_Find(b *testing.B) {
-	var children NodeChildren
+	var children NodeChildren2
 	children.insert(newNode("aaaa", "aaaa", 0))
 	children.insert(newNode("bbbb", "bbbb", 0))
 	children.insert(newNode("cccc", "cccc", 0))
