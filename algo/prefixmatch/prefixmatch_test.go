@@ -2,6 +2,8 @@ package prefixmatch
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewTree(t *testing.T) {
@@ -10,7 +12,7 @@ func TestNewTree(t *testing.T) {
 		t.Fatal("NewTree should return a non-nil tree")
 	}
 	if tree.children == nil {
-		t.Error("NewTree should initialize children map")
+		t.Error("NewTree should initialize Children map")
 	}
 	if tree.emptyNode != nil {
 		t.Error("NewTree should have nil emptyNode initially")
@@ -23,13 +25,13 @@ func TestInsert_EmptyPattern(t *testing.T) {
 	// 插入空模式
 	err := tree.Insert("", 100)
 	if err != nil {
-		t.Errorf("Insert empty pattern should succeed, got error: %v", err)
+		t.Errorf("Insert empty Pattern should succeed, got error: %v", err)
 	}
 
 	// 再次插入空模式应该失败
 	err = tree.Insert("", 200)
 	if err == nil {
-		t.Error("Insert duplicate empty pattern should fail")
+		t.Error("Insert duplicate empty Pattern should fail")
 	}
 }
 
@@ -44,39 +46,45 @@ func TestInsert_SinglePattern(t *testing.T) {
 	// 验证可以搜索到
 	node := tree.Search("test")
 	if node == nil {
-		t.Error("Should find inserted pattern")
+		t.Error("Should find inserted Pattern")
 	}
-	if node.value != 1 {
-		t.Errorf("Expected value 1, got %d", node.value)
+	if node.Value != 1 {
+		t.Errorf("Expected Value 1, got %d", node.Value)
 	}
 }
 
 func TestInsert_MultiplePatterns(t *testing.T) {
 	tree := NewTree()
 
-	patterns := map[string]int{
-		"test":    1,
-		"team":    2,
-		"toast":   3,
-		"testing": 4,
+	// 使用 slice 保证插入顺序固定
+	patterns := []struct {
+		pattern string
+		value   int
+	}{
+		{"test", 1},
+		{"team", 2},
+		{"toast", 3},
+		{"testing", 4},
 	}
 
-	for pattern, value := range patterns {
-		err := tree.Insert(pattern, value)
+	// 按固定顺序插入
+	for _, p := range patterns {
+		err := tree.Insert(p.pattern, p.value)
+		tree.debugPrint()
 		if err != nil {
-			t.Errorf("Insert %s failed: %v", pattern, err)
+			t.Errorf("Insert %s failed: %v", p.pattern, err)
 		}
 	}
 
 	// 验证所有模式都能找到
-	for pattern, expectedValue := range patterns {
-		node := tree.Search(pattern)
+	for _, p := range patterns {
+		node := tree.Search(p.pattern)
 		if node == nil {
-			t.Errorf("Should find pattern: %s", pattern)
+			t.Errorf("Should find Pattern: %s", p.pattern)
 			continue
 		}
-		if node.value != expectedValue {
-			t.Errorf("Pattern %s: expected value %d, got %d", pattern, expectedValue, node.value)
+		if node.Value != p.value {
+			t.Errorf("Pattern %s: expected Value %d, got %d", p.pattern, p.value, node.Value)
 		}
 	}
 }
@@ -92,7 +100,7 @@ func TestInsert_DuplicatePattern(t *testing.T) {
 	// 重复插入相同的模式应该失败
 	err = tree.Insert("test", 2)
 	if err == nil {
-		t.Error("Insert duplicate pattern should fail")
+		t.Error("Insert duplicate Pattern should fail")
 	}
 }
 
@@ -128,11 +136,11 @@ func TestInsert_WithCommonPrefix(t *testing.T) {
 	for _, tt := range tests {
 		node := tree.Search(tt.pattern)
 		if node == nil {
-			t.Errorf("Should find pattern: %s", tt.pattern)
+			t.Errorf("Should find Pattern: %s", tt.pattern)
 			continue
 		}
-		if node.value != tt.value {
-			t.Errorf("Pattern %s: expected value %d, got %d", tt.pattern, tt.value, node.value)
+		if node.Value != tt.value {
+			t.Errorf("Pattern %s: expected Value %d, got %d", tt.pattern, tt.value, node.Value)
 		}
 	}
 }
@@ -154,13 +162,13 @@ func TestInsert_PrefixIsKey(t *testing.T) {
 
 	// 两个都应该能找到
 	node := tree.Search("testing")
-	if node == nil || node.value != 1 {
-		t.Error("Should find 'testing' with value 1")
+	if node == nil || node.Value != 1 {
+		t.Error("Should find 'testing' with Value 1")
 	}
 
 	node = tree.Search("test")
-	if node == nil || node.value != 2 {
-		t.Error("Should find 'test' with value 2")
+	if node == nil || node.Value != 2 {
+		t.Error("Should find 'test' with Value 2")
 	}
 }
 
@@ -196,11 +204,11 @@ func TestInsert_NodeSplitting(t *testing.T) {
 	for _, tt := range tests {
 		node := tree.Search(tt.pattern)
 		if node == nil {
-			t.Errorf("Should find pattern: %s", tt.pattern)
+			t.Errorf("Should find Pattern: %s", tt.pattern)
 			continue
 		}
-		if node.value != tt.value {
-			t.Errorf("Pattern %s: expected value %d, got %d", tt.pattern, tt.value, node.value)
+		if node.Value != tt.value {
+			t.Errorf("Pattern %s: expected Value %d, got %d", tt.pattern, tt.value, node.Value)
 		}
 	}
 }
@@ -223,7 +231,7 @@ func TestSearch_NotFound(t *testing.T) {
 	for _, pattern := range tests {
 		node := tree.Search(pattern)
 		if node != nil {
-			t.Errorf("Should not find pattern: %s", pattern)
+			t.Errorf("Should not find Pattern: %s", pattern)
 		}
 	}
 }
@@ -234,17 +242,17 @@ func TestSearch_EmptyPattern(t *testing.T) {
 	// 没有插入空模式时搜索
 	node := tree.Search("")
 	if node != nil {
-		t.Error("Should not find empty pattern when not inserted")
+		t.Error("Should not find empty Pattern when not inserted")
 	}
 
 	// 插入空模式后搜索
 	tree.Insert("", 100)
 	node = tree.Search("")
 	if node == nil {
-		t.Error("Should find empty pattern after insert")
+		t.Error("Should find empty Pattern after insert")
 	}
-	if node.value != 100 {
-		t.Errorf("Expected value 100, got %d", node.value)
+	if node.Value != 100 {
+		t.Errorf("Expected Value 100, got %d", node.Value)
 	}
 }
 
@@ -256,18 +264,18 @@ func TestSearch_SingleCharacter(t *testing.T) {
 	tree.Insert("c", 3)
 
 	node := tree.Search("a")
-	if node == nil || node.value != 1 {
-		t.Error("Should find 'a' with value 1")
+	if node == nil || node.Value != 1 {
+		t.Error("Should find 'a' with Value 1")
 	}
 
 	node = tree.Search("b")
-	if node == nil || node.value != 2 {
-		t.Error("Should find 'b' with value 2")
+	if node == nil || node.Value != 2 {
+		t.Error("Should find 'b' with Value 2")
 	}
 
 	node = tree.Search("c")
-	if node == nil || node.value != 3 {
-		t.Error("Should find 'c' with value 3")
+	if node == nil || node.Value != 3 {
+		t.Error("Should find 'c' with Value 3")
 	}
 }
 
@@ -296,47 +304,47 @@ func TestLongestCommonPrefix(t *testing.T) {
 
 func TestNode_Reset(t *testing.T) {
 	node := &Node{
-		part:       "test",
-		pattern:    "testing",
-		children:   map[byte]*Node{'a': {}},
-		value:      100,
-		valueValid: true,
+		Part:       "test",
+		Pattern:    "testing",
+		Children:   map[byte]*Node{'a': {}},
+		Value:      100,
+		ValueValid: true,
 	}
 
 	node.reset()
 
-	if node.part != "" {
-		t.Error("part should be empty after reset")
+	if node.Part != "" {
+		t.Error("Part should be empty after reset")
 	}
-	if node.pattern != "" {
-		t.Error("pattern should be empty after reset")
+	if node.Pattern != "" {
+		t.Error("Pattern should be empty after reset")
 	}
-	if node.value != 0 {
-		t.Error("value should be 0 after reset")
+	if node.Value != 0 {
+		t.Error("Value should be 0 after reset")
 	}
-	if node.valueValid {
-		t.Error("valueValid should be false after reset")
+	if node.ValueValid {
+		t.Error("ValueValid should be false after reset")
 	}
-	if node.children == nil {
-		t.Error("children should not be nil after reset")
+	if node.Children == nil {
+		t.Error("Children should not be nil after reset")
 	}
 }
 
 func TestNode_CandidateChild(t *testing.T) {
 	node := &Node{
-		children: map[byte]*Node{
-			'a': {part: "apple"},
-			'b': {part: "banana"},
+		Children: map[byte]*Node{
+			'a': {Part: "apple"},
+			'b': {Part: "banana"},
 		},
 	}
 
 	child := node.candidateChild("apple")
-	if child == nil || child.part != "apple" {
+	if child == nil || child.Part != "apple" {
 		t.Error("Should find child starting with 'a'")
 	}
 
 	child = node.candidateChild("banana")
-	if child == nil || child.part != "banana" {
+	if child == nil || child.Part != "banana" {
 		t.Error("Should find child starting with 'b'")
 	}
 
@@ -349,17 +357,17 @@ func TestNode_CandidateChild(t *testing.T) {
 func TestNewNode(t *testing.T) {
 	node := newNode("testing", "ing", 42)
 
-	if node.pattern != "testing" {
-		t.Errorf("Expected pattern 'testing', got %s", node.pattern)
+	if node.Pattern != "testing" {
+		t.Errorf("Expected Pattern 'testing', got %s", node.Pattern)
 	}
-	if node.part != "ing" {
-		t.Errorf("Expected part 'ing', got %s", node.part)
+	if node.Part != "ing" {
+		t.Errorf("Expected Part 'ing', got %s", node.Part)
 	}
-	if node.value != 42 {
-		t.Errorf("Expected value 42, got %d", node.value)
+	if node.Value != 42 {
+		t.Errorf("Expected Value 42, got %d", node.Value)
 	}
-	if !node.valueValid {
-		t.Error("valueValid should be true")
+	if !node.ValueValid {
+		t.Error("ValueValid should be true")
 	}
 }
 
@@ -391,11 +399,11 @@ func TestComplexScenario(t *testing.T) {
 	for _, p := range patterns {
 		node := tree.Search(p.pattern)
 		if node == nil {
-			t.Errorf("Should find pattern: %s", p.pattern)
+			t.Errorf("Should find Pattern: %s", p.pattern)
 			continue
 		}
-		if node.value != p.value {
-			t.Errorf("Pattern %s: expected value %d, got %d", p.pattern, p.value, node.value)
+		if node.Value != p.value {
+			t.Errorf("Pattern %s: expected Value %d, got %d", p.pattern, p.value, node.Value)
 		}
 	}
 
@@ -404,7 +412,7 @@ func TestComplexScenario(t *testing.T) {
 	for _, pattern := range notExist {
 		node := tree.Search(pattern)
 		if node != nil {
-			t.Errorf("Should not find pattern: %s", pattern)
+			t.Errorf("Should not find Pattern: %s", pattern)
 		}
 	}
 }
@@ -417,28 +425,16 @@ func TestTreeSearch_Internal(t *testing.T) {
 	tree.Insert("team", 3)
 
 	// 测试内部 search 方法
-	node, rest := tree.search("testing")
+	node := tree.Search("testing")
 	if node == nil {
 		t.Error("Should find node for 'testing'")
 	}
-	if rest != "" {
-		t.Errorf("Expected empty rest, got %s", rest)
-	}
 
-	node, rest = tree.search("test")
+	node = tree.Search("test")
 	if node == nil {
 		t.Error("Should find node for 'test'")
 	}
-	if rest != "" {
-		t.Errorf("Expected empty rest, got %s", rest)
-	}
-
 	// 搜索不存在但有部分匹配的
-	node, rest = tree.search("testimony")
-	if node == nil {
-		t.Error("Should find partial match node")
-	}
-	if rest == "" {
-		t.Error("Should have remaining pattern")
-	}
+	node = tree.Search("testimony")
+	require.Nil(t, node)
 }

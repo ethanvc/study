@@ -1,6 +1,7 @@
 package prefixmatch
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,63 +13,84 @@ type Tree struct {
 }
 
 type Node struct {
-	part       string
-	pattern    string
-	children   map[byte]*Node
-	value      int
-	valueValid bool
+	Part       string
+	Pattern    string
+	Children   map[byte]*Node
+	Value      int
+	ValueValid bool
 }
 
 func newNode(pattern, partPattern string, value int) *Node {
 	return &Node{
-		part:       partPattern,
-		pattern:    pattern,
-		value:      value,
-		valueValid: true,
+		Part:       partPattern,
+		Pattern:    pattern,
+		Value:      value,
+		ValueValid: true,
 	}
+}
+
+func (n *Node) insertChild(child *Node) {
+	if n.Children == nil {
+		n.Children = make(map[byte]*Node)
+	}
+	n.Children[child.Part[0]] = child
 }
 
 func (n *Node) reset() {
-	n.part = ""
-	n.pattern = ""
-	n.children = make(map[byte]*Node)
-	n.value = 0
-	n.valueValid = false
+	n.Part = ""
+	n.Pattern = ""
+	n.Children = make(map[byte]*Node)
+	n.Value = 0
+	n.ValueValid = false
 }
 
 func (n *Node) candidateChild(pattern string) *Node {
-	return n.children[pattern[0]]
+	return n.Children[pattern[0]]
 }
 
 func (n *Node) insert(pattern string, part string, value int) error {
-	prefix := longestCommonPrefix(n.part, part)
-	if len(prefix) == len(n.part) {
-		if n.valueValid {
+	prefix := longestCommonPrefix(n.Part, part)
+	prefixLen := len(prefix)
+	// use len to check eq, have better performance
+	if prefixLen == len(part) && prefixLen == len(n.Part) {
+		// a vs a
+		if n.ValueValid {
 			return fmt.Errorf("%s already exist", pattern)
 		}
-		n.valueValid = true
-		n.value = value
+		n.ValueValid = true
+		n.Value = value
 		return nil
 	}
-	newPart := part[len(prefix):]
-	if len(n.part) < len(prefix) {
-		// existing pattern short then new pattern
+	if prefixLen == len(n.Part) {
+		// a vs ab
+		newPart := part[prefixLen:]
 		candidate := n.candidateChild(newPart)
 		if candidate == nil {
-			childNode := newNode(pattern, part[len(prefix):], value)
-			n.children[childNode.part[0]] = childNode
+			newChild := newNode(pattern, part[prefixLen:], value)
+			n.insertChild(newChild)
 			return nil
 		}
 		return candidate.insert(pattern, newPart, value)
 	}
-	// existing pattern longer then new pattern, split current node
+	if prefixLen == len(part) {
+		// ab vs a
+		oldChild := *n
+		oldChild.Part = oldChild.Part[prefixLen:]
+		n.reset()
+		n.insertChild(&oldChild)
+		n.Value = value
+		n.ValueValid = true
+		n.Part = prefix
+		return nil
+	}
+	// ab vs ac
 	oldChild := *n
-	oldChild.part = oldChild.part[len(prefix):]
+	oldChild.Part = oldChild.Part[prefixLen:]
 	n.reset()
-	n.part = prefix
-	n.children[oldChild.part[0]] = &oldChild
-	newChild := newNode(pattern, newPart, value)
-	n.children[newChild.part[0]] = newChild
+	n.Part = prefix
+	n.Children[oldChild.Part[0]] = &oldChild
+	newChild := newNode(pattern, part[prefixLen:], value)
+	n.Children[newChild.Part[0]] = newChild
 	return nil
 }
 
@@ -79,36 +101,44 @@ func NewTree() *Tree {
 	}
 }
 
-func (t *Tree) Search(pattern string) *Node {
-	n, restPattern := t.search(pattern)
-	if n != nil && restPattern == "" && n.valueValid {
-		return n
-	} else {
-		return nil
+func (t *Tree) debugPrint() string {
+	buf, err := json.Marshal(t.children)
+	if err != nil {
+		panic(err)
 	}
+	fmt.Println(string(buf))
+	return string(buf)
 }
 
-// return the most matched node and rest pattern
-func (t *Tree) search(pattern string) (*Node, string) {
+func (t *Tree) Search(pattern string) *Node {
+	return t.search(pattern)
+}
+
+// return the most matched node and rest Pattern
+func (t *Tree) search(pattern string) *Node {
 	if pattern == "" {
-		return t.emptyNode, pattern
+		return t.emptyNode
 	}
 	n := t.children[pattern[0]]
 	if n == nil {
-		return nil, pattern
+		return nil
 	}
 	part := pattern
 	for {
-		if !strings.HasPrefix(part, n.part) {
-			return n, part
+		if !strings.HasPrefix(part, n.Part) {
+			return nil
 		}
-		if len(n.part) == len(part) {
-			return n, ""
+		if len(n.Part) == len(part) {
+			if n.ValueValid {
+				return n
+			} else {
+				return nil
+			}
 		}
-		newPart := part[len(n.part):]
+		newPart := part[len(n.Part):]
 		candidate := n.candidateChild(newPart)
 		if candidate == nil {
-			return n, part
+			return nil
 		}
 		n = candidate
 		part = newPart
@@ -132,7 +162,7 @@ func (t *Tree) insertEmptyPattern(val int) error {
 		t.emptyNode = newNode("", "", val)
 		return nil
 	} else {
-		return errors.New("empty pattern already in tree")
+		return errors.New("empty Pattern already in tree")
 	}
 }
 
