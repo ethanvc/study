@@ -102,7 +102,6 @@ func NewTree() *Tree {
 }
 
 func (t *Tree) debugPrint() string {
-	panic("why here")
 	buf, err := json.Marshal(t.children)
 	if err != nil {
 		panic(err)
