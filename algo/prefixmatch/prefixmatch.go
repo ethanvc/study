@@ -102,6 +102,7 @@ func NewTree() *Tree {
 }
 
 func (t *Tree) debugPrint() string {
+	panic("why here")
 	buf, err := json.Marshal(t.children)
 	if err != nil {
 		panic(err)
@@ -174,4 +175,28 @@ func longestCommonPrefix(a, b string) string {
 		}
 	}
 	return a[0:l]
+}
+
+type NodeChildren struct {
+	FirstBytes string
+	Nodes      []*Node
+}
+
+func (c *NodeChildren) insert(n *Node) {
+	existNode := c.getCandidateChild(n.Part)
+	if existNode != nil {
+		panic("duplicate node")
+	}
+	c.FirstBytes += n.Part[0:1]
+	c.Nodes = append(c.Nodes, existNode)
+}
+
+func (c *NodeChildren) getCandidateChild(pattern string) *Node {
+	patternCh := pattern[0]
+	for i, ch := range c.FirstBytes {
+		if patternCh == byte(ch) {
+			return c.Nodes[i]
+		}
+	}
+	return nil
 }

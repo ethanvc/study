@@ -438,3 +438,25 @@ func TestTreeSearch_Internal(t *testing.T) {
 	node = tree.Search("testimony")
 	require.Nil(t, node)
 }
+
+// go test -run=^$ -bench='^Benchmark_NodeChildren_Find$' -benchmem
+func Benchmark_NodeChildren_Find(b *testing.B) {
+	var children NodeChildren
+	children.insert(newNode("aaaa", "aaaa", 0))
+	children.insert(newNode("bbbb", "bbbb", 0))
+	children.insert(newNode("cccc", "cccc", 0))
+	children.insert(newNode("dddd", "dddd", 0))
+	children.insert(newNode("eeee", "eeee", 0))
+	children.insert(newNode("ffff", "ffff", 0))
+	children.insert(newNode("gggg", "gggg", 0))
+	children.insert(newNode("hhhh", "hhhh", 0))
+	const patterns = "abcdefghijklmn"
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for i := 0; pb.Next(); i++ {
+			start := i % len(patterns)
+			p := patterns[start : start+1]
+			children.getCandidateChild(p)
+		}
+	})
+}
