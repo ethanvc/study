@@ -44,7 +44,6 @@ func (n *Node[Value]) insert(pattern, restPattern string, val Value) error {
 
 // n is a plain node
 func (n *Node[Value]) insertPlain(pattern, restPattern string, val Value) error {
-	var err error
 	if patternStartWithWild(restPattern) {
 		// a vs :id
 		return fmt.Errorf("ShouldNeverComeHere; pattern=%s, n.part=%s", pattern, n.Part)
@@ -79,15 +78,14 @@ func (n *Node[Value]) insertPlain(pattern, restPattern string, val Value) error 
 		if candidate != nil {
 			return candidate.insertPlain(pattern, restPattern, val)
 		}
-		newChild := newNode[Value](currentPart[prefixLen:])
-		err = newChild.insert(pattern, restPattern, val)
+		newChildren, err := createNewNodes(pattern, restPattern, val)
 		if err != nil {
 			return err
 		}
-		n.insertChild(newChild)
+		n.insertChild(newChildren)
 		return nil
 	}
-	if prefixLen == len(prefix) {
+	if prefixLen == len(currentPart) {
 		// ab vs a
 		newChild, err := createNewNodes(pattern, restPattern, val)
 		if err != nil {
@@ -102,21 +100,15 @@ func (n *Node[Value]) insertPlain(pattern, restPattern string, val Value) error 
 		return nil
 	}
 	// ab vs ac
-	newChild := newNode[Value](currentPart[prefixLen:])
-	if restPattern == "" {
-		newChild.setVal(pattern, val)
-	} else {
-		restChildren, err := createNewNodes(pattern, restPattern, val)
-		if err != nil {
-			return err
-		}
-		newChild.insertChild(restChildren)
+	newChildren, err := createNewNodes(pattern, restPattern, val)
+	if err != nil {
+		return err
 	}
 	oldChild := *n
 	oldChild.Part = oldChild.Part[prefixLen:]
 	n.reset(prefix)
 	n.insertChild(&oldChild)
-	n.insertChild(newChild)
+	n.insertChild(newChildren)
 	return nil
 }
 
@@ -295,7 +287,8 @@ func (t *Tree[Value]) Search(p string, params Params) (*Node[Value], Params, err
 			return n, params, nil
 		}
 		// match current node, but still need child match
-		candidate := n.getPlainCandidate(p)
+		restPath = restPath[consumed:]
+		candidate := n.getPlainCandidate(restPath)
 		if candidate == nil {
 			candidate = n.WildChild
 		} else {

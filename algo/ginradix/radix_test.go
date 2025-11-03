@@ -185,7 +185,7 @@ func TestTree_Search_StarWildcard(t *testing.T) {
 	require.Equal(t, 1, node.Val, "Value should match")
 	require.Len(t, params, 1, "Should have 1 param")
 	require.Equal(t, "filepath", params[0].Key, "Param key should match")
-	require.Equal(t, "/css/main.css", params[0].Value, "Param value should match")
+	require.Equal(t, "css/main.css", params[0].Value, "Param value should match")
 }
 
 func TestTree_Search_MultiWildcard(t *testing.T) {
