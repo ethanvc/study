@@ -1,9 +1,12 @@
 package golanggin
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_PathRegister(t *testing.T) {
@@ -27,4 +30,15 @@ func Test_PathRegister(t *testing.T) {
 	// panic: not valid
 	// engine.POST("/flower/*/abc", func(c *gin.Context) {})
 	// engine.POST("/flower/:/abc", func(c *gin.Context) {})
+}
+
+// empty param does not match
+func Test_EmptyParam(t *testing.T) {
+	engine := gin.New()
+	engine.GET("/users/:id", func(c *gin.Context) {
+	})
+	req := httptest.NewRequest(http.MethodGet, "/users/", nil)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code)
 }

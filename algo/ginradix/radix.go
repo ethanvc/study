@@ -169,6 +169,16 @@ func (n *Node[Value]) getCandidate(pattern string) *Node[Value] {
 	return nil
 }
 
+func (n *Node[Value]) getPlainCandidate(pattern string) *Node[Value] {
+	ch := pattern[0]
+	for _, child := range n.Children {
+		if child.Part[0] == ch {
+			return child
+		}
+	}
+	return nil
+}
+
 func (n *Node[Value]) setVal(pattern string, val Value) {
 	n.Pattern = pattern
 	n.Val = val
@@ -185,6 +195,25 @@ func (n *Node[Value]) insertChild(child *Node[Value]) {
 	} else {
 		n.Children = append(n.Children, child)
 	}
+}
+
+func (n *Node[Value]) consume(p string) int {
+	firstByte := n.Part[0]
+	if firstByte == ':' {
+		for i, ch := range p {
+			if ch == '/' {
+				return i
+			}
+		}
+		return len(p)
+	}
+	if firstByte == '*' {
+		return len(p)
+	}
+	if strings.HasPrefix(p, n.Part) {
+		return len(n.Part)
+	}
+	return 0
 }
 
 func (t *Tree[Value]) MustInsert(pattern string, val Value) {
@@ -206,6 +235,76 @@ func (t *Tree[Value]) Insert(pattern string, val Value) error {
 		return err
 	}
 	return t.root.insert(pattern, pattern, val)
+}
+
+type searchNode[Value any] struct {
+	n        *Node[Value]
+	params   Params
+	restPath string
+}
+
+type searchNodes[Value any] []searchNode[Value]
+
+func (nodes *searchNodes[Value]) empty() bool {
+	if nodes == nil {
+		return true
+	}
+	return len(*nodes) == 0
+}
+
+func (nodes *searchNodes[Value]) pop() (*Node[Value], Params, string) {
+	last := (*nodes)[len(*nodes)-1]
+	*nodes = (*nodes)[:len(*nodes)-1]
+	return last.n, last.params, last.restPath
+}
+
+func (nodes *searchNodes[Value]) push(n *Node[Value], params Params, restPath string) {
+	*nodes = append(*nodes, searchNode[Value]{n, params, restPath})
+}
+
+func (t *Tree[Value]) Search(p string, params Params) (*Node[Value], Params, error) {
+	if t.root == nil || p == "" {
+		return nil, params, ErrPatternNotFound
+	}
+
+	n := t.root
+	restPath := p
+	var backNodes searchNodes[Value]
+	for {
+		if n == nil {
+			if backNodes.empty() {
+				return nil, params, ErrPatternNotFound
+			}
+			n, params, restPath = backNodes.pop()
+			continue
+		}
+		consumed := n.consume(restPath)
+		if consumed == 0 {
+			n = nil
+			continue
+		}
+		// current node matched
+		if n.isWildNode() {
+			params = append(params, Param{
+				Key:   n.Part[1:],
+				Value: restPath[:consumed],
+			})
+		}
+		if consumed == len(restPath) && n.ValValid {
+			// fully matched
+			return n, params, nil
+		}
+		// match current node, but still need child match
+		candidate := n.getPlainCandidate(p)
+		if candidate == nil {
+			candidate = n.WildChild
+		} else {
+			if n.WildChild != nil {
+				backNodes.push(n.WildChild, params, restPath)
+			}
+		}
+		n = candidate
+	}
 }
 
 func createNewNodes[Value any](pattern string, restPattern string, val Value) (*Node[Value], error) {
@@ -252,3 +351,10 @@ func getNextPatternPart(pattern string) string {
 	}
 	return pattern
 }
+
+type Param struct {
+	Key   string
+	Value string
+}
+
+type Params []Param
