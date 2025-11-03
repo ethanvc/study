@@ -27,6 +27,37 @@ func Test_BackTrace(t *testing.T) {
 	require.Equal(t, "3333", params[0].Value)
 }
 
+func Test_BackTrace2(t *testing.T) {
+	tree := &Tree[int]{}
+	err := tree.Insert("/abc/:id", 3)
+	require.NoError(t, err)
+	err = tree.Insert("/abc/bcd", 4)
+	require.NoError(t, err)
+	n, params, err := tree.Search("/abc/bcd", nil)
+	require.NoError(t, err)
+	require.Equal(t, "/abc/bcd", n.Pattern)
+	require.Equal(t, 0, len(params))
+
+	n, params, err = tree.Search("/abc/3333", nil)
+	require.NoError(t, err)
+	require.Equal(t, "/abc/:id", n.Pattern)
+	require.Equal(t, 1, len(params))
+	require.Equal(t, "id", params[0].Key)
+	require.Equal(t, "3333", params[0].Value)
+}
+
+func Test_Conflict(t *testing.T) {
+	{
+		tree := &Tree[int]{}
+		err := tree.Insert("/abc/:id", 3)
+		require.NoError(t, err)
+		err = tree.Insert("/abc/:id", 4)
+		require.Error(t, err)
+		err = tree.Insert("/abc/:idc", 4)
+		require.Error(t, err)
+	}
+}
+
 func TestTree_Insert_EmptyPattern(t *testing.T) {
 	tree := &Tree[int]{}
 	err := tree.Insert("", 1)
