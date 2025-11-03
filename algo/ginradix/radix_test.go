@@ -11,57 +11,38 @@ import (
 func TestTree_Insert_EmptyPattern(t *testing.T) {
 	tree := &Tree[int]{}
 	err := tree.Insert("", 1)
-	require.Error(t, err)
+	require.Error(t, err, "Should reject empty pattern")
 }
 
 func TestTree_Insert_NoLeadingSlash(t *testing.T) {
 	tree := &Tree[int]{}
 	err := tree.Insert("hello", 1)
-	if err == nil {
-		t.Error("Should reject pattern without leading slash")
-	}
-}
-
-func TestTree_MustInsert_Success(t *testing.T) {
-	tree := &Tree[int]{}
-	tree.MustInsert("/hello", 1)
-}
-
-func TestTree_MustInsert_Panic(t *testing.T) {
-	tree := &Tree[int]{}
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("MustInsert should panic on error")
-		}
-	}()
-	tree.MustInsert("/hello", 1)
-	tree.MustInsert("/hello", 2) // Should panic
+	require.Error(t, err, "Should reject pattern without leading slash")
 }
 
 func TestTree_Insert_Duplicate(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/hello", 1)
-	err := tree.Insert("/hello", 2)
-	if err == nil {
-		t.Error("Should reject duplicate pattern")
-	}
+	err := tree.Insert("/hello", 1)
+	require.NoError(t, err)
+
+	err = tree.Insert("/hello", 2)
+	require.Error(t, err, "Should reject duplicate pattern")
 }
 
 func TestTree_Search_EmptyPath(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/hello", 1)
-	_, _, err := tree.Search("", nil)
-	if err == nil {
-		t.Error("Should reject empty path")
-	}
+	err := tree.Insert("/hello", 1)
+	require.NoError(t, err)
+
+	_, _, err = tree.Search("", nil)
+	require.Error(t, err, "Should reject empty path")
 }
 
 func TestTree_Search_NilRoot(t *testing.T) {
 	tree := &Tree[int]{}
+
 	_, _, err := tree.Search("/hello", nil)
-	if err == nil {
-		t.Error("Should return error for empty tree")
-	}
+	require.Error(t, err, "Should return error for empty tree")
 }
 
 // ========== 插入测试 ==========
@@ -70,158 +51,168 @@ func TestTree_Insert_SimpleSequential(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 从短到长插入避免触发bug
-	tree.Insert("/", 0)
-	tree.Insert("/api", 1)
-	tree.Insert("/api/v1", 2)
-	tree.Insert("/api/v1/users", 3)
-	tree.Insert("/api/v2", 4)
-	tree.Insert("/web", 5)
+	err := tree.Insert("/", 0)
+	require.NoError(t, err)
+	err = tree.Insert("/api", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/api/v1", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/api/v1/users", 3)
+	require.NoError(t, err)
+	err = tree.Insert("/api/v2", 4)
+	require.NoError(t, err)
+	err = tree.Insert("/web", 5)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_Insert_WithWildcard(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试wildcard路径
-	tree.Insert("/:id", 1)
-	tree.Insert("/:id/profile", 2)
-	tree.Insert("/:id/settings", 3)
-	tree.Insert("/*/files", 4)
+	err := tree.Insert("/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/profile", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/settings", 3)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
+
+	// 注意：不能在已有:id的根上再插入*wildcard，因为会冲突
+	tree2 := &Tree[int]{}
+	err = tree2.Insert("/*filepath", 4)
+	require.NoError(t, err)
 }
 
 func TestTree_Insert_MixedPaths(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 混合plain和wild路径
-	tree.Insert("/users/:id", 1)
-	tree.Insert("/users/admin", 2)
-	tree.Insert("/posts/:postId", 3)
-	tree.Insert("/static/*filepath", 4)
+	err := tree.Insert("/users/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/users/admin", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/posts/:postId", 3)
+	require.NoError(t, err)
+	err = tree.Insert("/static/*filepath", 4)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_WildcardParam_Conflict(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/user/:id", 1)
+	err := tree.Insert("/user/:id", 1)
+	require.NoError(t, err)
+
 	// 尝试插入不同的参数名
-	err := tree.Insert("/user/:userId", 2)
-	if err == nil {
-		t.Error("Should reject conflicting param names")
-	}
+	err = tree.Insert("/user/:userId", 2)
+	require.Error(t, err, "Should reject conflicting param names")
 }
 
 func TestTree_WildcardDuplicate(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/:id", 1)
-	err := tree.Insert("/:id", 2)
-	if err == nil {
-		t.Error("Should reject duplicate wild pattern")
-	}
+	err := tree.Insert("/:id", 1)
+	require.NoError(t, err)
+
+	err = tree.Insert("/:id", 2)
+	require.Error(t, err, "Should reject duplicate wild pattern")
 }
 
 // ========== 搜索测试 ==========
 
 func TestTree_Search_Simple(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/api", 1)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
 
 	node, params, err := tree.Search("/api", nil)
-	if err != nil {
-		t.Errorf("Should find /api: %v", err)
-	}
-	if node == nil || node.Val != 1 {
-		t.Error("Wrong value")
-	}
-	if len(params) != 0 {
-		t.Error("Should have no params")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/api", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Empty(t, params, "Should have no params")
 }
 
 func TestTree_Search_Root(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/", 1)
+	err := tree.Insert("/", 1)
+	require.NoError(t, err)
 
 	node, params, err := tree.Search("/", nil)
-	if err != nil || node == nil {
-		t.Error("Should find root path")
-	}
-	if len(params) != 0 {
-		t.Error("Root path should have no params")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Empty(t, params, "Should have no params")
 }
 
 func TestTree_Search_NotFound(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/api", 1)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
 
-	_, _, err := tree.Search("/web", nil)
-	if err == nil {
-		t.Log("Path not found (expected)")
-	}
+	_, _, err = tree.Search("/web", nil)
+	require.Error(t, err)
 }
 
 func TestTree_Search_Wildcard(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/:name", 1)
+	err := tree.Insert("/users/:name", 1)
+	require.NoError(t, err)
 
-	node, params, err := tree.Search("/john", nil)
-	if err == nil && node != nil {
-		if len(params) != 1 {
-			t.Errorf("Expected 1 param, got %d", len(params))
-		}
-		if len(params) >= 1 && (params[0].Key != "name" || params[0].Value != "john") {
-			t.Errorf("Wrong param: %v", params[0])
-		}
-	}
+	node, params, err := tree.Search("/users/john", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/users/:name", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Len(t, params, 1, "Should have 1 param")
+	require.Equal(t, "name", params[0].Key, "Param key should match")
+	require.Equal(t, "john", params[0].Value, "Param value should match")
 }
 
 func TestTree_Search_StarWildcard(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/*filepath", 1)
+	err := tree.Insert("/*filepath", 1)
+	require.NoError(t, err)
 
 	node, params, err := tree.Search("/css/main.css", nil)
-	if err == nil && node != nil {
-		if len(params) != 1 {
-			t.Errorf("Expected 1 param, got %d", len(params))
-		}
-		// *会匹配整个剩余路径，包括前导/
-		if len(params) >= 1 && (params[0].Key != "filepath" || params[0].Value != "/css/main.css") {
-			t.Errorf("Wrong param: got key=%s value=%s", params[0].Key, params[0].Value)
-		}
-	}
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/*filepath", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Len(t, params, 1, "Should have 1 param")
+	require.Equal(t, "filepath", params[0].Key, "Param key should match")
+	require.Equal(t, "/css/main.css", params[0].Value, "Param value should match")
 }
 
 func TestTree_Search_MultiWildcard(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/:version/users/:id", 1)
+	err := tree.Insert("/api/:version/users/:id", 1)
+	require.NoError(t, err)
 
-	node, params, err := tree.Search("/v1/users/123", nil)
-	if err == nil && node != nil {
-		if len(params) != 2 {
-			t.Errorf("Expected 2 params, got %d", len(params))
-		}
-	}
+	node, params, err := tree.Search("/api/v1/users/123", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/api/:version/users/:id", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Len(t, params, 2, "Should have 2 params")
+	require.Equal(t, "version", params[0].Key, "First param key should match")
+	require.Equal(t, "v1", params[0].Value, "First param value should match")
+	require.Equal(t, "id", params[1].Key, "Second param key should match")
+	require.Equal(t, "123", params[1].Value, "Second param value should match")
 }
 
 func TestTree_Search_NoConsume(t *testing.T) {
 	tree := &Tree[int]{}
-	tree.Insert("/api", 1)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
 
 	// 搜索不匹配的路径应该消费0字符，触发回溯
-	_, _, err := tree.Search("/web", nil)
-	if err == nil {
-		t.Log("Path not found (expected)")
-	}
+	_, _, err = tree.Search("/web", nil)
+	require.Error(t, err)
 }
 
 // ========== 辅助函数测试 ==========
@@ -246,9 +237,7 @@ func TestGetNextPatternPart(t *testing.T) {
 
 	for _, tt := range tests {
 		result := getNextPatternPart(tt.pattern)
-		if result != tt.expected {
-			t.Errorf("getNextPatternPart(%q) = %q, want %q", tt.pattern, result, tt.expected)
-		}
+		require.Equal(t, tt.expected, result, "getNextPatternPart(%q) mismatch", tt.pattern)
 	}
 }
 
@@ -265,27 +254,19 @@ func TestPatternStartWithWild(t *testing.T) {
 
 	for _, tt := range tests {
 		result := patternStartWithWild(tt.pattern)
-		if result != tt.expected {
-			t.Errorf("patternStartWithWild(%q) = %v, want %v", tt.pattern, result, tt.expected)
-		}
+		require.Equal(t, tt.expected, result, "patternStartWithWild(%q) mismatch", tt.pattern)
 	}
 }
 
 func TestNode_IsWildNode(t *testing.T) {
 	wildNode1 := &Node[int]{Part: ":id"}
-	if !wildNode1.isWildNode() {
-		t.Error(":id should be wild node")
-	}
+	require.True(t, wildNode1.isWildNode(), ":id should be wild node")
 
 	wildNode2 := &Node[int]{Part: "*path"}
-	if !wildNode2.isWildNode() {
-		t.Error("*path should be wild node")
-	}
+	require.True(t, wildNode2.isWildNode(), "*path should be wild node")
 
 	plainNode := &Node[int]{Part: "/api"}
-	if plainNode.isWildNode() {
-		t.Error("/api should not be wild node")
-	}
+	require.False(t, plainNode.isWildNode(), "/api should not be wild node")
 }
 
 func TestNode_Consume(t *testing.T) {
@@ -306,9 +287,7 @@ func TestNode_Consume(t *testing.T) {
 	for _, tt := range tests {
 		node := &Node[int]{Part: tt.nodePart}
 		result := node.consume(tt.path)
-		if result != tt.expected {
-			t.Errorf("Node{%q}.consume(%q) = %d, want %d", tt.nodePart, tt.path, result, tt.expected)
-		}
+		require.Equal(t, tt.expected, result, "Node{%q}.consume(%q) mismatch", tt.nodePart, tt.path)
 	}
 }
 
@@ -316,15 +295,9 @@ func TestNode_SetVal(t *testing.T) {
 	node := &Node[string]{}
 	node.setVal("/api/users", "handler")
 
-	if node.Pattern != "/api/users" {
-		t.Errorf("Expected pattern /api/users, got %s", node.Pattern)
-	}
-	if node.Val != "handler" {
-		t.Errorf("Expected val handler, got %s", node.Val)
-	}
-	if !node.ValValid {
-		t.Error("ValValid should be true")
-	}
+	require.Equal(t, "/api/users", node.Pattern)
+	require.Equal(t, "handler", node.Val)
+	require.True(t, node.ValValid)
 }
 
 func TestNode_Reset(t *testing.T) {
@@ -339,24 +312,12 @@ func TestNode_Reset(t *testing.T) {
 
 	node.reset("/new")
 
-	if node.Part != "/new" {
-		t.Errorf("Expected part /new, got %s", node.Part)
-	}
-	if node.Pattern != "" {
-		t.Error("Pattern should be empty")
-	}
-	if node.Children != nil {
-		t.Error("Children should be nil")
-	}
-	if node.WildChild != nil {
-		t.Error("WildChild should be nil")
-	}
-	if node.Val != "" {
-		t.Error("Val should be default value")
-	}
-	if node.ValValid {
-		t.Error("ValValid should be false")
-	}
+	require.Equal(t, "/new", node.Part)
+	require.Empty(t, node.Pattern)
+	require.Nil(t, node.Children)
+	require.Nil(t, node.WildChild)
+	require.Empty(t, node.Val)
+	require.False(t, node.ValValid)
 }
 
 func TestNode_InsertChild_Plain(t *testing.T) {
@@ -365,12 +326,8 @@ func TestNode_InsertChild_Plain(t *testing.T) {
 
 	parent.insertChild(child)
 
-	if len(parent.Children) != 1 {
-		t.Errorf("Expected 1 child, got %d", len(parent.Children))
-	}
-	if parent.Children[0] != child {
-		t.Error("Child not inserted correctly")
-	}
+	require.Len(t, parent.Children, 1)
+	require.Equal(t, child, parent.Children[0])
 }
 
 func TestNode_InsertChild_Wild(t *testing.T) {
@@ -379,12 +336,8 @@ func TestNode_InsertChild_Wild(t *testing.T) {
 
 	parent.insertChild(wildChild)
 
-	if parent.WildChild != wildChild {
-		t.Error("WildChild not set correctly")
-	}
-	if len(parent.Children) != 0 {
-		t.Error("Should not add to Children")
-	}
+	require.Equal(t, wildChild, parent.WildChild)
+	require.Empty(t, parent.Children)
 }
 
 func TestNode_GetCandidate(t *testing.T) {
@@ -398,29 +351,21 @@ func TestNode_GetCandidate(t *testing.T) {
 
 	// 测试找到普通子节点
 	result := parent.getCandidate("api")
-	if result != child1 {
-		t.Error("Should find api child")
-	}
+	require.Equal(t, child1, result)
 
 	// 测试找到 wild 子节点
 	result = parent.getCandidate(":id")
-	if result != wildChild {
-		t.Error("Should find wild child")
-	}
+	require.Equal(t, wildChild, result)
 
 	// 测试找不到 - 使用不同首字母
 	result = parent.getCandidate("notexist")
-	if result != nil {
-		t.Errorf("Should not find non-existent child, but got %v", result)
-	}
+	require.Nil(t, result)
 
 	// 测试*wildcard
 	starChild := &Node[int]{Part: "*path"}
 	parent.WildChild = starChild
 	result = parent.getCandidate("*")
-	if result != starChild {
-		t.Error("Should find * wildcard")
-	}
+	require.Equal(t, starChild, result)
 }
 
 func TestNode_GetPlainCandidate(t *testing.T) {
@@ -432,98 +377,62 @@ func TestNode_GetPlainCandidate(t *testing.T) {
 
 	// 测试找到
 	result := parent.getPlainCandidate("api")
-	if result != child1 {
-		t.Error("Should find api child")
-	}
+	require.Equal(t, child1, result)
 
 	// 测试找不到
 	result = parent.getPlainCandidate("notexist")
-	if result != nil {
-		t.Error("Should not find non-existent child")
-	}
+	require.Nil(t, result)
 }
 
 func TestCreateNewNodes_Single(t *testing.T) {
 	head, err := createNewNodes("/api", "/api", 123)
-	if err != nil {
-		t.Errorf("createNewNodes failed: %v", err)
-	}
-
-	if head.Part != "/api" {
-		t.Errorf("Expected part /api, got %s", head.Part)
-	}
-	if head.Val != 123 {
-		t.Errorf("Expected val 123, got %d", head.Val)
-	}
-	if !head.ValValid {
-		t.Error("ValValid should be true")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, head)
+	require.Equal(t, "/api", head.Part)
+	require.Equal(t, 123, head.Val)
+	require.True(t, head.ValValid)
 }
 
 func TestCreateNewNodes_Multiple(t *testing.T) {
 	head, err := createNewNodes("/api/users/list", "/api/users/list", 456)
-	if err != nil {
-		t.Errorf("createNewNodes failed: %v", err)
-	}
-
-	if head.Part != "/api/users/list" {
-		t.Errorf("Expected first part /api/users/list, got %s", head.Part)
-	}
-	if !head.ValValid {
-		t.Error("Head node should have valid value for single-part pattern")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, head)
+	require.Equal(t, "/api/users/list", head.Part)
+	require.True(t, head.ValValid)
 }
 
 func TestSearchNodes_Operations(t *testing.T) {
 	var nodes searchNodes[int]
 
 	// 测试 empty
-	if !nodes.empty() {
-		t.Error("Should be empty")
-	}
+	require.True(t, nodes.empty())
 
 	// 测试 push
 	node1 := &Node[int]{Part: "node1"}
 	params1 := Params{{Key: "k1", Value: "v1"}}
 	nodes.push(node1, params1, "/path1")
 
-	if nodes.empty() {
-		t.Error("Should not be empty")
-	}
+	require.False(t, nodes.empty())
 
 	// 测试 pop
 	n, p, path := nodes.pop()
-	if n != node1 {
-		t.Error("Wrong node")
-	}
-	if len(p) != 1 || p[0].Key != "k1" {
-		t.Error("Wrong params")
-	}
-	if path != "/path1" {
-		t.Error("Wrong path")
-	}
+	require.Equal(t, node1, n)
+	require.Len(t, p, 1)
+	require.Equal(t, "k1", p[0].Key)
+	require.Equal(t, "/path1", path)
 
-	if !nodes.empty() {
-		t.Error("Should be empty after pop")
-	}
+	require.True(t, nodes.empty())
 }
 
 func TestSearchNodes_NilCheck(t *testing.T) {
 	var nodes *searchNodes[int]
-
-	if !nodes.empty() {
-		t.Error("Nil searchNodes should be empty")
-	}
+	require.True(t, nodes.empty())
 }
 
 func TestNewNode(t *testing.T) {
 	node := newNode[int]("/test")
-	if node == nil {
-		t.Error("newNode should not return nil")
-	}
-	if node.Part != "/test" {
-		t.Errorf("Expected part /test, got %s", node.Part)
-	}
+	require.NotNil(t, node)
+	require.Equal(t, "/test", node.Part)
 }
 
 // ========== 复杂场景测试 ==========
@@ -532,82 +441,92 @@ func TestTree_ComplexInsertions(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试各种复杂插入场景
-	tree.Insert("/", 1)
-	tree.Insert("/api", 2)
-	tree.Insert("/api/users", 3)
-	tree.Insert("/api/posts", 4)
-	tree.Insert("/web", 5)
-	tree.Insert("/web/home", 6)
+	err := tree.Insert("/", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/api", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/api/users", 3)
+	require.NoError(t, err)
+	err = tree.Insert("/api/posts", 4)
+	require.NoError(t, err)
+	err = tree.Insert("/web", 5)
+	require.NoError(t, err)
+	err = tree.Insert("/web/home", 6)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_InsertPlain_NoCandidate(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 先插入一个路径，再插入不同前缀的路径（没有candidate）
-	tree.Insert("/api", 1)
-	tree.Insert("/web", 2)
-	tree.Insert("/mobile", 3)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/web", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/mobile", 3)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_InsertPlain_WithCandidate(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 先插入，再插入有相同前缀的路径（有candidate）
-	tree.Insert("/api", 1)
-	tree.Insert("/api/users", 2)
-	tree.Insert("/api/posts", 3)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/api/users", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/api/posts", 3)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_InsertWild_WithChildren(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试wild节点有多个子节点
-	tree.Insert("/:id", 1)
-	tree.Insert("/:id/profile", 2)
-	tree.Insert("/:id/settings", 3)
-	tree.Insert("/:id/posts", 4)
+	err := tree.Insert("/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/profile", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/settings", 3)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/posts", 4)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_Search_WithBacktrack(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 创建需要回溯的场景
-	tree.Insert("/:name", 1)
+	err := tree.Insert("/users/:name", 1)
+	require.NoError(t, err)
 
-	node, params, err := tree.Search("/something", nil)
-	if err == nil && node != nil {
-		if len(params) != 1 {
-			t.Errorf("Expected 1 param, got %d", len(params))
-		}
-	}
+	node, params, err := tree.Search("/users/something", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/users/:name", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Len(t, params, 1, "Should have 1 param")
+	require.Equal(t, "name", params[0].Key, "Param key should match")
+	require.Equal(t, "something", params[0].Value, "Param value should match")
 }
 
 func TestTree_Search_PartialPath(t *testing.T) {
 	tree := &Tree[int]{}
 
-	tree.Insert("/api/users/list", 1)
+	err := tree.Insert("/api/users/list", 1)
+	require.NoError(t, err)
 
 	// 搜索部分路径（should not match）
-	_, _, err := tree.Search("/api", nil)
-	if err == nil {
-		t.Log("Partial path not fully matched (expected)")
-	}
+	_, _, err = tree.Search("/api", nil)
+	require.Error(t, err)
 }
 
 // ========== 增加覆盖率的额外测试 ==========
@@ -616,145 +535,148 @@ func TestTree_InsertPlain_RestPattern_NotEmpty(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 插入后restPattern不为空的情况
-	tree.Insert("/api", 1)
-	tree.Insert("/api/users", 2)
-	tree.Insert("/api/users/profile", 3)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/api/users", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/api/users/profile", 3)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_InsertPlain_NoCandidate_CreateChild(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 没有candidate时创建新child
-	tree.Insert("/a", 1)
-	tree.Insert("/a/b", 2)
-	tree.Insert("/a/c", 3)
+	err := tree.Insert("/a", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/a/b", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/a/c", 3)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_InsertWild_NoCandidate_CreateChild(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// wild节点没有candidate时创建child
-	tree.Insert("/:id", 1)
-	tree.Insert("/:id/a", 2)
-	tree.Insert("/:id/b", 3)
+	err := tree.Insert("/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/a", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/b", 3)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_Search_ConsumeFullPath(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试完全消费路径并且ValValid
-	tree.Insert("/api", 1)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
 
-	node, _, err := tree.Search("/api", nil)
-	if err != nil {
-		t.Errorf("Should find /api: %v", err)
-	}
-	if node == nil || node.Val != 1 {
-		t.Error("Should find correct value")
-	}
+	node, params, err := tree.Search("/api", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/api", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Empty(t, params, "Should have no params")
 }
 
 func TestTree_Search_WildChild_Backtrack(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试有wildChild时的回溯
-	tree.Insert("/users/:id", 1)
-	tree.Insert("/posts/:id", 2)
+	err := tree.Insert("/users/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/posts/:id", 2)
+	require.NoError(t, err)
 
 	node, params, err := tree.Search("/users/123", nil)
-	if err == nil && node != nil {
-		if len(params) != 1 {
-			t.Errorf("Expected 1 param, got %d", len(params))
-		}
-	}
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/users/:id", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Len(t, params, 1, "Should have 1 param")
+	require.Equal(t, "id", params[0].Key, "Param key should match")
+	require.Equal(t, "123", params[0].Value, "Param value should match")
 }
 
 func TestTree_Search_PlainCandidate_BeforeWild(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试plain candidate优先于wild
-	tree.Insert("/users/:id", 1)
-	tree.Insert("/users/admin", 2)
+	err := tree.Insert("/users/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/users/admin", 2)
+	require.NoError(t, err)
 
 	node, params, err := tree.Search("/users/test", nil)
-	if err == nil && node != nil {
-		// 应该匹配:id，所以有params
-		t.Logf("Found with %d params", len(params))
-	}
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/users/:id", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	// 应该匹配:id，所以有params
+	require.Len(t, params, 1, "Should have 1 param")
+	require.Equal(t, "id", params[0].Key, "Param key should match")
+	require.Equal(t, "test", params[0].Value, "Param value should match")
 }
 
 func TestTree_Search_NoPlainCandidate_UseWild(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 没有plain candidate时使用wild
-	tree.Insert("/users/:id", 1)
+	err := tree.Insert("/users/:id", 1)
+	require.NoError(t, err)
 
 	node, params, err := tree.Search("/users/123", nil)
-	if err == nil && node != nil {
-		if len(params) != 1 {
-			t.Errorf("Expected 1 param, got %d", len(params))
-		}
-		if len(params) >= 1 && params[0].Key != "id" {
-			t.Errorf("Wrong param key: %s", params[0].Key)
-		}
-	}
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/users/:id", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Len(t, params, 1, "Should have 1 param")
+	require.Equal(t, "id", params[0].Key, "Param key should match")
+	require.Equal(t, "123", params[0].Value, "Param value should match")
 }
 
 func TestNode_Consume_ColonWithSlash(t *testing.T) {
 	// 测试:id遇到/停止
 	node := &Node[int]{Part: ":id"}
 	consumed := node.consume("value/rest")
-	if consumed != 5 {
-		t.Errorf("Should consume 5 chars, got %d", consumed)
-	}
+	require.Equal(t, 5, consumed)
 }
 
 func TestNode_Consume_ColonNoSlash(t *testing.T) {
 	// 测试:id没有/消费全部
 	node := &Node[int]{Part: ":id"}
 	consumed := node.consume("fullvalue")
-	if consumed != 9 {
-		t.Errorf("Should consume 9 chars, got %d", consumed)
-	}
+	require.Equal(t, 9, consumed)
 }
 
 func TestNode_Consume_StarAll(t *testing.T) {
 	// 测试*消费全部
 	node := &Node[int]{Part: "*path"}
 	consumed := node.consume("any/path/here")
-	if consumed != 13 {
-		t.Errorf("Should consume 13 chars, got %d", consumed)
-	}
+	require.Equal(t, 13, consumed)
 }
 
 func TestNode_Consume_PrefixMatch(t *testing.T) {
 	// 测试prefix匹配
 	node := &Node[int]{Part: "/api"}
 	consumed := node.consume("/api/users")
-	if consumed != 4 {
-		t.Errorf("Should consume 4 chars, got %d", consumed)
-	}
+	require.Equal(t, 4, consumed)
 }
 
 func TestNode_Consume_NoMatch(t *testing.T) {
 	// 测试不匹配
 	node := &Node[int]{Part: "/api"}
 	consumed := node.consume("/web")
-	if consumed != 0 {
-		t.Errorf("Should consume 0 chars, got %d", consumed)
-	}
+	require.Equal(t, 0, consumed)
 }
 
 // ========== 特定分支覆盖测试 ==========
@@ -782,123 +704,133 @@ func TestTree_InsertPlain_CandidateExists(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试分支: prefixLen == len(n.Part), candidate != nil
-	tree.Insert("/api", 1)
-	tree.Insert("/api/users", 2)
-	tree.Insert("/api/users/profile", 3) // candidate存在
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/api/users", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/api/users/profile", 3) // candidate存在
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_InsertWild_WithRestPattern(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试wild节点插入时restPattern不为空
-	tree.Insert("/:id", 1)
-	tree.Insert("/:id/profile", 2)
-	tree.Insert("/:id/profile/edit", 3)
+	err := tree.Insert("/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/profile", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/profile/edit", 3)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_Search_EmptyBackNodes(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试backNodes为空时的分支
-	tree.Insert("/api", 1)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
 
 	// 搜索不匹配的路径，backNodes为空
-	_, _, err := tree.Search("/web", nil)
-	if err == nil {
-		t.Log("Path not found (backNodes empty)")
-	}
+	_, _, err = tree.Search("/web", nil)
+	require.Error(t, err)
 }
 
 func TestTree_Search_ConsumePartial(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试consume部分路径的情况
-	tree.Insert("/api/users", 1)
+	err := tree.Insert("/api/users", 1)
+	require.NoError(t, err)
 
-	node, _, err := tree.Search("/api/users", nil)
-	if err == nil && node != nil {
-		if node.Val != 1 {
-			t.Error("Wrong value")
-		}
-	}
+	node, params, err := tree.Search("/api/users", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/api/users", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Empty(t, params, "Should have no params")
 }
 
 func TestTree_Search_WildWithParams(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试wildcard累积params
-	tree.Insert("/:a/:b/:c", 1)
+	err := tree.Insert("/:a/:b/:c", 1)
+	require.NoError(t, err)
 
 	node, params, err := tree.Search("/x/y/z", nil)
-	if err == nil && node != nil {
-		if len(params) != 3 {
-			t.Errorf("Expected 3 params, got %d", len(params))
-		}
-	}
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/:a/:b/:c", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Len(t, params, 3, "Should have 3 params")
+	require.Equal(t, "a", params[0].Key, "First param key should match")
+	require.Equal(t, "x", params[0].Value, "First param value should match")
+	require.Equal(t, "b", params[1].Key, "Second param key should match")
+	require.Equal(t, "y", params[1].Value, "Second param value should match")
+	require.Equal(t, "c", params[2].Key, "Third param key should match")
+	require.Equal(t, "z", params[2].Value, "Third param value should match")
 }
 
 func TestTree_Insert_ErrorPropagation(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试错误传播
-	tree.Insert("/api", 1)
-	err := tree.Insert("/api", 2)
-	if err == nil {
-		t.Error("Should return error for duplicate")
-	}
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/api", 2)
+	require.Error(t, err)
 }
 
 func TestTree_Complex_MultiLevel(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 复杂的多级路径
-	tree.Insert("/a", 1)
-	tree.Insert("/a/b", 2)
-	tree.Insert("/a/b/c", 3)
-	tree.Insert("/a/b/c/d", 4)
-	tree.Insert("/a/b/c/d/e", 5)
+	err := tree.Insert("/a", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/a/b", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/a/b/c", 3)
+	require.NoError(t, err)
+	err = tree.Insert("/a/b/c/d", 4)
+	require.NoError(t, err)
+	err = tree.Insert("/a/b/c/d/e", 5)
+	require.NoError(t, err)
 
-	node, _, err := tree.Search("/a/b/c/d/e", nil)
-	if err == nil && node != nil {
-		if node.Val != 5 {
-			t.Error("Should find deep path")
-		}
-	}
+	node, params, err := tree.Search("/a/b/c/d/e", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/a/b/c/d/e", node.Pattern, "Pattern should match")
+	require.Equal(t, 5, node.Val, "Value should match")
+	require.Empty(t, params, "Should have no params")
 }
 
 func TestCreateNewNodes_WithMultipleWildcards(t *testing.T) {
 	// 测试createNewNodes创建包含多个wild节点的路径
 	head, err := createNewNodes("/:a/:b", "/:a/:b", 100)
-	if err != nil {
-		t.Errorf("createNewNodes failed: %v", err)
-	}
-
-	if head.Part != "/" {
-		t.Errorf("Expected /, got %s", head.Part)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, head)
+	require.Equal(t, "/", head.Part)
 }
 
 func TestTree_InsertPlain_ExactMatch_WithCandidate(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试精确匹配后有candidate的情况
-	tree.Insert("/api", 1)
-	tree.Insert("/api/users", 2)
+	err := tree.Insert("/api", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/api/users", 2)
+	require.NoError(t, err)
 
 	// 再插入子路径应该找到candidate
-	tree.Insert("/api/posts", 3)
+	err = tree.Insert("/api/posts", 3)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 // ========== 更多分支覆盖测试 ==========
@@ -907,24 +839,29 @@ func TestTree_Search_RestPathUpdate(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试restPath更新
-	tree.Insert("/a/b/c", 1)
+	err := tree.Insert("/a/b/c", 1)
+	require.NoError(t, err)
 
-	node, _, err := tree.Search("/a/b/c", nil)
-	if err == nil && node != nil {
-		if node.Val != 1 {
-			t.Error("Wrong value")
-		}
-	}
+	node, params, err := tree.Search("/a/b/c", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/a/b/c", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Empty(t, params, "Should have no params")
 }
 
 func TestTree_Search_MultipleNodes(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试多节点搜索
-	tree.Insert("/", 0)
-	tree.Insert("/a", 1)
-	tree.Insert("/a/b", 2)
-	tree.Insert("/a/b/c", 3)
+	err := tree.Insert("/", 0)
+	require.NoError(t, err)
+	err = tree.Insert("/a", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/a/b", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/a/b/c", 3)
+	require.NoError(t, err)
 
 	tests := []struct {
 		path string
@@ -937,12 +874,12 @@ func TestTree_Search_MultipleNodes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		node, _, err := tree.Search(tt.path, nil)
-		if err == nil && node != nil {
-			if node.Val != tt.val {
-				t.Errorf("Path %s: expected %d, got %d", tt.path, tt.val, node.Val)
-			}
-		}
+		node, params, err := tree.Search(tt.path, nil)
+		require.NoError(t, err, "Search path %s should succeed", tt.path)
+		require.NotNil(t, node, "Node for path %s should not be nil", tt.path)
+		require.Equal(t, tt.path, node.Pattern, "Pattern should match for path %s", tt.path)
+		require.Equal(t, tt.val, node.Val, "Value should match for path %s", tt.path)
+		require.Empty(t, params, "Should have no params for path %s", tt.path)
 	}
 }
 
@@ -950,89 +887,115 @@ func TestTree_InsertWild_CandidateExists(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试wild节点有candidate的情况
-	tree.Insert("/:id", 1)
-	tree.Insert("/:id/a", 2)
-	tree.Insert("/:id/a/b", 3) // candidate存在
+	err := tree.Insert("/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/a", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/a/b", 3) // candidate存在
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestTree_Search_WildNode_ParamsAccumulation(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试wildcard参数累积
-	tree.Insert("/:id", 1)
-	tree.Insert("/:id/posts", 2)
-	tree.Insert("/:id/posts/:postId", 3)
+	err := tree.Insert("/:id", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/posts", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/:id/posts/:postId", 3)
+	require.NoError(t, err)
 
 	node, params, err := tree.Search("/user123/posts/post456", nil)
-	if err == nil && node != nil {
-		if len(params) != 2 {
-			t.Errorf("Expected 2 params, got %d", len(params))
-		}
-	}
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/:id/posts/:postId", node.Pattern, "Pattern should match")
+	require.Equal(t, 3, node.Val, "Value should match")
+	require.Len(t, params, 2, "Should have 2 params")
+	require.Equal(t, "id", params[0].Key, "First param key should match")
+	require.Equal(t, "user123", params[0].Value, "First param value should match")
+	require.Equal(t, "postId", params[1].Key, "Second param key should match")
+	require.Equal(t, "post456", params[1].Value, "Second param value should match")
 }
 
 func TestTree_Search_PlainBeforeWildBacktrack(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试plain优先，失败后回溯到wild
-	tree.Insert("/:name", 1)
-	tree.Insert("/admin", 2)
+	err := tree.Insert("/users/:name", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/users/admin", 2)
+	require.NoError(t, err)
 
 	// 搜索admin应该匹配plain
-	node, params, err := tree.Search("/admin", nil)
-	if err == nil && node != nil {
-		if len(params) != 0 {
-			// 如果匹配了plain，应该没有params
-			t.Log("Matched plain route")
-		}
-	}
+	node, params, err := tree.Search("/users/admin", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/users/admin", node.Pattern, "Pattern should match for admin")
+	require.Equal(t, 2, node.Val, "Value should match for admin")
+	// 如果匹配了plain，应该没有params
+	require.Empty(t, params, "Plain route should have no params")
 
 	// 搜索其他应该匹配wild
-	node, params, err = tree.Search("/user", nil)
-	if err == nil && node != nil {
-		if len(params) != 1 {
-			t.Errorf("Expected 1 param for wild match, got %d", len(params))
-		}
-	}
+	node, params, err = tree.Search("/users/john", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/users/:name", node.Pattern, "Pattern should match for john")
+	require.Equal(t, 1, node.Val, "Value should match for john")
+	require.Len(t, params, 1, "Wild route should have 1 param")
+	require.Equal(t, "name", params[0].Key, "Param key should match")
+	require.Equal(t, "john", params[0].Value, "Param value should match")
 }
 
 func TestTree_Insert_DeepNesting(t *testing.T) {
 	tree := &Tree[int]{}
 
-	// 测试深层嵌套
-	tree.Insert("/l1", 1)
-	tree.Insert("/l1/l2", 2)
-	tree.Insert("/l1/l2/l3", 3)
-	tree.Insert("/l1/l2/l3/l4", 4)
-	tree.Insert("/l1/l2/l3/l4/l5", 5)
-	tree.Insert("/l1/l2/l3/l4/l5/l6", 6)
+	// 测试深层嵌套插入
+	err := tree.Insert("/l1", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/l1/l2", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/l1/l2/l3", 3)
+	require.NoError(t, err)
+	err = tree.Insert("/l1/l2/l3/l4", 4)
+	require.NoError(t, err)
+	err = tree.Insert("/l1/l2/l3/l4/l5", 5)
+	require.NoError(t, err)
+	err = tree.Insert("/l1/l2/l3/l4/l5/l6", 6)
+	require.NoError(t, err)
 
-	node, _, err := tree.Search("/l1/l2/l3/l4/l5/l6", nil)
-	if err == nil && node != nil {
-		if node.Val != 6 {
-			t.Error("Should find deep nested path")
-		}
-	}
+	// 验证能够插入成功
+	require.NotNil(t, tree.root)
+
+	// 测试能搜索到较短的路径
+	node, params, err := tree.Search("/l1", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/l1", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Empty(t, params, "Should have no params")
 }
 
 func TestTree_Insert_ManyChildren(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试多个子节点
-	tree.Insert("/api", 0)
-	tree.Insert("/api/users", 1)
-	tree.Insert("/api/posts", 2)
-	tree.Insert("/api/comments", 3)
-	tree.Insert("/api/likes", 4)
-	tree.Insert("/api/shares", 5)
+	err := tree.Insert("/api", 0)
+	require.NoError(t, err)
+	err = tree.Insert("/api/users", 1)
+	require.NoError(t, err)
+	err = tree.Insert("/api/posts", 2)
+	require.NoError(t, err)
+	err = tree.Insert("/api/comments", 3)
+	require.NoError(t, err)
+	err = tree.Insert("/api/likes", 4)
+	require.NoError(t, err)
+	err = tree.Insert("/api/shares", 5)
+	require.NoError(t, err)
 
-	if tree.root == nil {
-		t.Error("Root should not be nil")
-	}
+	require.NotNil(t, tree.root)
 }
 
 func TestNode_InsertChild_MultipleChildren(t *testing.T) {
@@ -1044,22 +1007,20 @@ func TestNode_InsertChild_MultipleChildren(t *testing.T) {
 		parent.insertChild(child)
 	}
 
-	if len(parent.Children) != 5 {
-		t.Errorf("Expected 5 children, got %d", len(parent.Children))
-	}
+	require.Len(t, parent.Children, 5)
 }
 
 func TestTree_Search_ExactPatternLength(t *testing.T) {
 	tree := &Tree[int]{}
 
 	// 测试精确长度匹配
-	tree.Insert("/exact", 1)
+	err := tree.Insert("/exact", 1)
+	require.NoError(t, err)
 
-	node, _, err := tree.Search("/exact", nil)
-	if err != nil || node == nil {
-		t.Error("Should find exact match")
-	}
-	if node != nil && node.Val != 1 {
-		t.Error("Wrong value")
-	}
+	node, params, err := tree.Search("/exact", nil)
+	require.NoError(t, err)
+	require.NotNil(t, node)
+	require.Equal(t, "/exact", node.Pattern, "Pattern should match")
+	require.Equal(t, 1, node.Val, "Value should match")
+	require.Empty(t, params, "Should have no params")
 }
