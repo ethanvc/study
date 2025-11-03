@@ -87,16 +87,23 @@ func (n *Node[Value]) insertPlain(pattern, restPattern string, val Value) error 
 	}
 	if prefixLen == len(currentPart) {
 		// ab vs a
-		newChild, err := createNewNodes(pattern, restPattern, val)
-		if err != nil {
-			return err
+		var newChild *Node[Value]
+		if restPattern != "" {
+			var err error
+			newChild, err = createNewNodes(pattern, restPattern, val)
+			if err != nil {
+				return err
+			}
 		}
 		oldChild := *n
 		n.reset(prefix)
-		n.setVal(pattern, val)
-		oldChild.Part = currentPart[prefixLen:]
+		oldChild.Part = oldChild.Part[prefixLen:]
 		n.insertChild(&oldChild)
-		n.insertChild(newChild)
+		if newChild == nil {
+			n.setVal(pattern, val)
+		} else {
+			n.insertChild(newChild)
+		}
 		return nil
 	}
 	// ab vs ac
