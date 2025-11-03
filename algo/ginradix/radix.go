@@ -1,10 +1,10 @@
 package ginradix
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
-import "errors"
 
 type Tree[Value any] struct {
 	root *Node[Value]
@@ -25,21 +25,98 @@ func newNode[Value any](part string) *Node[Value] {
 	}
 }
 
+func (n *Node[Value]) reset(part string) {
+	n.Part = part
+	n.Pattern = ""
+	n.Children = nil
+	n.WildChild = nil
+	var defaultVal Value
+	n.Val = defaultVal
+	n.ValValid = false
+}
+
 func (n *Node[Value]) insert(pattern, restPattern string, val Value) error {
 	if n.isWildNode() {
-		return n.insertInWildNode(pattern, restPattern, val)
+		return n.insertWild(pattern, restPattern, val)
 	}
+	return n.insertPlain(pattern, restPattern, val)
+}
+
+// n is a plain node
+func (n *Node[Value]) insertPlain(pattern, restPattern string, val Value) error {
+	var err error
 	if patternStartWithWild(restPattern) {
-		if n.WildChild != nil {
-			return n.WildChild.insert(pattern, restPattern, val)
+		// a vs :id
+		return fmt.Errorf("ShouldNeverComeHere; pattern=%s, n.part=%s", pattern, n.Part)
+	}
+	currentPart := getNextPatternPart(restPattern)
+	prefix := longestCommonPrefix(n.Part, currentPart)
+	prefixLen := len(prefix)
+	restPattern = restPattern[prefixLen:]
+	if prefixLen == len(currentPart) && prefixLen == len(n.Part) {
+		// a vs a
+		if restPattern == "" {
+			if n.ValValid {
+				return fmt.Errorf("PatternAlreadyExist;pattern=%s", pattern)
+			}
+			n.setVal(pattern, val)
+			return nil
 		}
-		var err error
-		n.WildChild, err = createNewNodes(pattern, restPattern, val)
+		candidate := n.getCandidate(restPattern)
+		if candidate == nil {
+			head, err := createNewNodes(pattern, restPattern, val)
+			if err != nil {
+				return err
+			}
+			n.insertChild(head)
+			return nil
+		}
+		return candidate.insert(pattern, restPattern, val)
+	}
+	if prefixLen == len(n.Part) {
+		// a vs ab
+		candidate := n.getCandidate(restPattern)
+		if candidate != nil {
+			return candidate.insertPlain(pattern, restPattern, val)
+		}
+		newChild := newNode[Value](currentPart[prefixLen:])
+		err = newChild.insert(pattern, restPattern, val)
 		if err != nil {
 			return err
 		}
+		n.insertChild(newChild)
 		return nil
 	}
+	if prefixLen == len(prefix) {
+		// ab vs a
+		newChild, err := createNewNodes(pattern, restPattern, val)
+		if err != nil {
+			return err
+		}
+		oldChild := *n
+		n.reset(prefix)
+		n.setVal(pattern, val)
+		oldChild.Part = currentPart[prefixLen:]
+		n.insertChild(&oldChild)
+		n.insertChild(newChild)
+		return nil
+	}
+	// ab vs ac
+	newChild := newNode[Value](currentPart[prefixLen:])
+	if restPattern == "" {
+		newChild.setVal(pattern, val)
+	} else {
+		restChildren, err := createNewNodes(pattern, restPattern, val)
+		if err != nil {
+			return err
+		}
+		newChild.insertChild(restChildren)
+	}
+	oldChild := *n
+	oldChild.Part = oldChild.Part[prefixLen:]
+	n.reset(prefix)
+	n.insertChild(&oldChild)
+	n.insertChild(newChild)
 	return nil
 }
 
@@ -47,19 +124,26 @@ func patternStartWithWild(pattern string) bool {
 	return pattern[0] == ':' || pattern[0] == '*'
 }
 
-func (n *Node[Value]) insertInWildNode(pattern, restPattern string, val Value) error {
+// n is a wild node
+func (n *Node[Value]) insertWild(pattern, restPattern string, val Value) error {
 	part := getNextPatternPart(restPattern)
-	if part != n.Part {
-		return fmt.Errorf("conflict param part(old=%s, new=%s), new pattern is %s", n.Part, part, pattern)
+	if !patternStartWithWild(part) {
+		// :id vs a
+		return fmt.Errorf("ShouldNeverHere: pattern=%s, n.part=%s", pattern, n.Part)
 	}
-	if len(part) == len(restPattern) {
+	if part != n.Part {
+		// :id vs :idx
+		return fmt.Errorf("PatternConflict: pattern=%s, n.part=%s", pattern, n.Part)
+	}
+	// :id vs :id
+	restPattern = restPattern[len(part):]
+	if restPattern == "" {
 		if n.ValValid {
-			return fmt.Errorf("pattern %s already exist", pattern)
+			return fmt.Errorf("PatternAlreadyExist; pattern=%s", pattern)
 		}
 		n.setVal(pattern, val)
 		return nil
 	}
-	restPattern = restPattern[len(part):]
 	candidate := n.getCandidate(restPattern)
 	if candidate != nil {
 		return candidate.insert(pattern, restPattern, val)
