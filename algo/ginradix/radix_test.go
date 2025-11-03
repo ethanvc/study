@@ -2,6 +2,8 @@ package ginradix
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // ========== 基础功能测试 ==========
@@ -9,9 +11,7 @@ import (
 func TestTree_Insert_EmptyPattern(t *testing.T) {
 	tree := &Tree[int]{}
 	err := tree.Insert("", 1)
-	if err == nil {
-		t.Error("Should reject empty pattern")
-	}
+	require.Error(t, err)
 }
 
 func TestTree_Insert_NoLeadingSlash(t *testing.T) {
