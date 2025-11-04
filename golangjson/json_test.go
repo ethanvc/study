@@ -24,3 +24,12 @@ func Test_jsonMerge(t *testing.T) {
 	require.Equal(t, "Hello2", abc.List[0])
 	require.Equal(t, 3, abc.Val)
 }
+
+func Test_AcceptStr(t *testing.T) {
+	type Abc struct {
+		Val json.Number
+	}
+	var abc Abc
+	err := json.Unmarshal([]byte(`{"Val":"333"}`), &abc)
+	require.NoError(t, err)
+}
