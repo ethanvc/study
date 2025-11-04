@@ -9,6 +9,7 @@ package golanggrpc
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -155,19 +156,65 @@ func (x *EchoContent) GetMsg() string {
 	return ""
 }
 
+type StructWithData struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          *structpb.Value        `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StructWithData) Reset() {
+	*x = StructWithData{}
+	mi := &file_golanggrpc_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StructWithData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StructWithData) ProtoMessage() {}
+
+func (x *StructWithData) ProtoReflect() protoreflect.Message {
+	mi := &file_golanggrpc_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StructWithData.ProtoReflect.Descriptor instead.
+func (*StructWithData) Descriptor() ([]byte, []int) {
+	return file_golanggrpc_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *StructWithData) GetData() *structpb.Value {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 var File_golanggrpc_proto protoreflect.FileDescriptor
 
 const file_golanggrpc_proto_rawDesc = "" +
 	"\n" +
 	"\x10golanggrpc.proto\x12\n" +
-	"helloworld\"\"\n" +
+	"helloworld\x1a\x1cgoogle/protobuf/struct.proto\"\"\n" +
 	"\fHelloRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"&\n" +
 	"\n" +
 	"HelloReply\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"\x1f\n" +
 	"\vEchoContent\x12\x10\n" +
-	"\x03msg\x18\x01 \x01(\tR\x03msg2\xce\x01\n" +
+	"\x03msg\x18\x01 \x01(\tR\x03msg\"<\n" +
+	"\x0eStructWithData\x12*\n" +
+	"\x04data\x18\x01 \x01(\v2\x16.google.protobuf.ValueR\x04data2\xce\x01\n" +
 	"\aGreeter\x12>\n" +
 	"\bSayHello\x12\x18.helloworld.HelloRequest\x1a\x16.helloworld.HelloReply\"\x00\x12G\n" +
 	"\x11SayHelloReturnNil\x12\x18.helloworld.HelloRequest\x1a\x16.helloworld.HelloReply\"\x00\x12:\n" +
@@ -186,24 +233,27 @@ func file_golanggrpc_proto_rawDescGZIP() []byte {
 	return file_golanggrpc_proto_rawDescData
 }
 
-var file_golanggrpc_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_golanggrpc_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_golanggrpc_proto_goTypes = []any{
-	(*HelloRequest)(nil), // 0: helloworld.HelloRequest
-	(*HelloReply)(nil),   // 1: helloworld.HelloReply
-	(*EchoContent)(nil),  // 2: helloworld.EchoContent
+	(*HelloRequest)(nil),   // 0: helloworld.HelloRequest
+	(*HelloReply)(nil),     // 1: helloworld.HelloReply
+	(*EchoContent)(nil),    // 2: helloworld.EchoContent
+	(*StructWithData)(nil), // 3: helloworld.StructWithData
+	(*structpb.Value)(nil), // 4: google.protobuf.Value
 }
 var file_golanggrpc_proto_depIdxs = []int32{
-	0, // 0: helloworld.Greeter.SayHello:input_type -> helloworld.HelloRequest
-	0, // 1: helloworld.Greeter.SayHelloReturnNil:input_type -> helloworld.HelloRequest
-	2, // 2: helloworld.Greeter.Echo:input_type -> helloworld.EchoContent
-	1, // 3: helloworld.Greeter.SayHello:output_type -> helloworld.HelloReply
-	1, // 4: helloworld.Greeter.SayHelloReturnNil:output_type -> helloworld.HelloReply
-	2, // 5: helloworld.Greeter.Echo:output_type -> helloworld.EchoContent
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	4, // 0: helloworld.StructWithData.data:type_name -> google.protobuf.Value
+	0, // 1: helloworld.Greeter.SayHello:input_type -> helloworld.HelloRequest
+	0, // 2: helloworld.Greeter.SayHelloReturnNil:input_type -> helloworld.HelloRequest
+	2, // 3: helloworld.Greeter.Echo:input_type -> helloworld.EchoContent
+	1, // 4: helloworld.Greeter.SayHello:output_type -> helloworld.HelloReply
+	1, // 5: helloworld.Greeter.SayHelloReturnNil:output_type -> helloworld.HelloReply
+	2, // 6: helloworld.Greeter.Echo:output_type -> helloworld.EchoContent
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_golanggrpc_proto_init() }
@@ -217,7 +267,7 @@ func file_golanggrpc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_golanggrpc_proto_rawDesc), len(file_golanggrpc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
