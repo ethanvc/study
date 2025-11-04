@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 5s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  external_labels:
+    monitor: 'codelab-monitor' # Set the location of the Prometheus instance.
+
+scrape_configs:
+  - job_name: 'prometheus' # Assign a job name to the scrape.
+    scrape_interval: 5s # Override the global default and scrape every 5 seconds.
+    static_configs:
+      - targets: ['host.docker.internal:9090'] # The target endpoint for scraping. Here, Prometheus scrapes itself.
+
+  - job_name: 'test'
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ['host.docker.internal:9100']

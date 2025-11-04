@@ -1,0 +1,18 @@
+# docker compose up
+version: '3'
+
+services:
+  prometheus:
+    image: 'prom/prometheus'
+    volumes:
+      - './prometheus_config:/etc/prometheus'
+    ports:
+      - '127.0.0.1:9090:9090'
+
+  # must use datasource: http://prometheus:9090
+  grafana:
+    # grafana/grafana-enterprise
+    # grafana/grafana:7.5.17-ubuntu
+    image: grafana/grafana-enterprise
+    ports:
+      - '127.0.0.1:3000:3000'
