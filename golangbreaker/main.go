@@ -1,13 +1,13 @@
 package main
 
 import (
-	"golangbreaker/golangbreaker"
+	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"runtime"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"golangbreaker/golangbreaker"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -15,8 +15,11 @@ import (
 func main() {
 	runtime.GOMAXPROCS(2)
 	http.Handle("/metrics", promhttp.Handler())
-	go bench()
-	err := http.ListenAndServe(":9100", nil)
+	bench := NewBench()
+	http.Handle("/", bench)
+	addr := ":9100"
+	fmt.Println("Starting server on", addr)
+	err := http.ListenAndServe(addr, nil)
 	if err != nil {
 		panic("启动 HTTP 服务失败: " + err.Error())
 	}
@@ -41,29 +44,39 @@ func init() {
 	prometheus.MustRegister(requestTotal, durationTotal)
 }
 
-func bench() {
-	engine := gin.New()
-	method := "test"
-	breaker := golangbreaker.NewGoSchedBreaker()
-	enableBreak := false
-	engine.GET("/", func(c *gin.Context) {
-		if enableBreak {
-			if breaker.Break() {
-				c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("FastReject"))
-				return
-			}
-		}
-		time.Sleep(500 * time.Millisecond)
-		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("OK"))
-	})
-	for {
-		originReq := httptest.NewRequest(http.MethodGet, "/", nil)
-		go func() {
-			start := time.Now()
-			recorder := httptest.NewRecorder()
-			engine.ServeHTTP(recorder, originReq)
-			requestTotal.WithLabelValues(method, recorder.Body.String()).Inc()
-			durationTotal.WithLabelValues(method, recorder.Body.String()).Observe(time.Since(start).Seconds())
-		}()
+type Bench struct {
+	method  string
+	breaker *golangbreaker.GoSchedBreaker
+}
+
+func NewBench() *Bench {
+	return &Bench{
+		method:  "gosched",
+		breaker: golangbreaker.NewGoSchedBreaker(),
 	}
+}
+
+func (b *Bench) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	result := b.Work()
+	_, _ = w.Write([]byte(result))
+}
+
+func (b *Bench) Work() string {
+	start := time.Now()
+	result := b.work()
+	requestTotal.WithLabelValues(b.method, result).Inc()
+	durationTotal.WithLabelValues(b.method, result).Observe(time.Since(start).Seconds())
+	return result
+}
+
+func (b *Bench) work() string {
+	if b.breaker.Break() {
+		return "FastReject"
+	}
+	resp, err := http.Get("https://www.baidu.com/")
+	if err != nil {
+		return err.Error()
+	}
+	defer resp.Body.Close()
+	return "OK"
 }
