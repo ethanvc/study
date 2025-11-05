@@ -14,6 +14,13 @@ import (
 
 func main() {
 	runtime.GOMAXPROCS(2)
+	go func() {
+		count := 0
+		for {
+			count++
+			runtime.Gosched()
+		}
+	}()
 	http.Handle("/metrics", promhttp.Handler())
 	bench := NewBench()
 	http.Handle("/", bench)
@@ -45,13 +52,11 @@ func init() {
 }
 
 type Bench struct {
-	method  string
-	breaker *golangbreaker.GoSchedBreaker
+	breaker golangbreaker.Breaker
 }
 
 func NewBench() *Bench {
 	return &Bench{
-		method:  "gosched",
 		breaker: golangbreaker.NewGoSchedBreaker(),
 	}
 }
@@ -64,14 +69,17 @@ func (b *Bench) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (b *Bench) Work() string {
 	start := time.Now()
 	result := b.work()
-	requestTotal.WithLabelValues(b.method, result).Inc()
-	durationTotal.WithLabelValues(b.method, result).Observe(time.Since(start).Seconds())
+	requestTotal.WithLabelValues(b.breaker.Name(), result).Inc()
+	durationTotal.WithLabelValues(b.breaker.Name(), result).Observe(time.Since(start).Seconds())
 	return result
 }
 
 func (b *Bench) work() string {
-	if b.breaker.Break() {
-		return "FastReject"
+	const enableBreak = false
+	if enableBreak {
+		if b.breaker.Break() {
+			return "FastReject"
+		}
 	}
 	resp, err := http.Get("https://www.baidu.com/")
 	if err != nil {

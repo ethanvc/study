@@ -17,6 +17,10 @@ func NewGoSchedBreaker() *GoSchedBreaker {
 	return breaker
 }
 
+func (b *GoSchedBreaker) Name() string {
+	return "go_sched_breaker"
+}
+
 func (b *GoSchedBreaker) Break() bool {
 	return b.overload.Load()
 }
