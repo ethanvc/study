@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"golangbreaker/golangbreaker"
@@ -13,14 +16,9 @@ import (
 )
 
 func main() {
+	clearEnv("http_proxy")
+	clearEnv("https_proxy")
 	runtime.GOMAXPROCS(2)
-	go func() {
-		count := 0
-		for {
-			count++
-			runtime.Gosched()
-		}
-	}()
 	http.Handle("/metrics", promhttp.Handler())
 	bench := NewBench()
 	http.Handle("/", bench)
@@ -44,7 +42,7 @@ var durationTotal = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name: "demo_request_duration_seconds",
 	},
-	[]string{"method", "event"},
+	[]string{"method"},
 )
 
 func init() {
@@ -62,6 +60,7 @@ func NewBench() *Bench {
 }
 
 func (b *Bench) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	io.ReadAll(r.Body)
 	result := b.Work()
 	_, _ = w.Write([]byte(result))
 }
@@ -70,21 +69,25 @@ func (b *Bench) Work() string {
 	start := time.Now()
 	result := b.work()
 	requestTotal.WithLabelValues(b.breaker.Name(), result).Inc()
-	durationTotal.WithLabelValues(b.breaker.Name(), result).Observe(time.Since(start).Seconds())
+	durationTotal.WithLabelValues(b.breaker.Name()).Observe(time.Since(start).Seconds())
 	return result
 }
 
 func (b *Bench) work() string {
-	const enableBreak = false
-	if enableBreak {
-		if b.breaker.Break() {
-			return "FastReject"
-		}
+	if b.breaker.Break() {
+		return "FastReject"
 	}
 	resp, err := http.Get("https://www.baidu.com/")
 	if err != nil {
-		return err.Error()
+		return "Error"
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 	return "OK"
+}
+
+func clearEnv(s string) {
+	os.Unsetenv(s)
+	os.Unsetenv(strings.ToLower(s))
+	os.Unsetenv(strings.ToUpper(s))
 }
