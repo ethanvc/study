@@ -2,7 +2,10 @@ module github.com/ethanvc/study/tcpstate
 
 go 1.24.0
 
-require github.com/shirou/gopsutil/v4 v4.25.10
+require (
+	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
+	github.com/shirou/gopsutil/v4 v4.25.10
+)
 
 require (
 	github.com/ebitengine/purego v0.9.0 // indirect
