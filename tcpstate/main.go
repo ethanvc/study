@@ -64,6 +64,15 @@ var tcpStates = []string{
 	"CLOSING",
 }
 
+func mustValidStatus(status string) {
+	for _, s := range tcpStates {
+		if s == status {
+			return
+		}
+	}
+	panic("invalid status: " + status)
+}
+
 // 统计结果
 type TCPStats struct {
 	Port   uint32
@@ -109,6 +118,7 @@ func collectTCPStats(remotePortsStr []string) []TCPStats {
 
 		// 统计状态
 		state := conn.Status
+		mustValidStatus(state)
 		statsMap[port][state]++
 	}
 
@@ -138,7 +148,6 @@ func printTable(stats []TCPStats) {
 	// 打印时间戳
 	fmt.Printf("\n═══════════════════════════════════════════════════════════════\n")
 	fmt.Printf("TCP状态统计报告 - %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Printf("═══════════════════════════════════════════════════════════════\n\n")
 
 	if len(stats) == 0 {
 		fmt.Println("没有统计数据")
@@ -146,68 +155,33 @@ func printTable(stats []TCPStats) {
 	}
 
 	// 打印表头
-	fmt.Printf("%-10s", "端口")
+	fmt.Printf("%-6s", "Port")
 	for _, state := range tcpStates {
-		fmt.Printf(" | %-12s", state)
+		fmt.Printf("%-11s", state)
 	}
 	fmt.Println()
 
 	// 打印分隔线
-	fmt.Print(strings.Repeat("-", 10))
+	fmt.Print(strings.Repeat("-", 8))
 	for range tcpStates {
-		fmt.Print(strings.Repeat("-", 16))
+		fmt.Print(strings.Repeat("-", 13))
 	}
 	fmt.Println()
 
 	// 打印每个端口的统计数据
 	totalByState := make(map[string]int)
-	totalConnections := 0
 
 	for _, portStats := range stats {
-		// 计算该端口的总连接数
-		portTotal := 0
-		for _, count := range portStats.States {
-			portTotal += count
-		}
-
-		// 如果该端口没有连接，跳过
-		if portTotal == 0 {
-			continue
-		}
-
-		fmt.Printf("%-10d", portStats.Port)
+		fmt.Printf("%-6d", portStats.Port)
 		for _, state := range tcpStates {
 			count := portStats.States[state]
 			if count > 0 {
-				fmt.Printf(" | %-12d", count)
+				fmt.Printf("%-11d", count)
 				totalByState[state] += count
-				totalConnections += count
 			} else {
-				fmt.Printf(" | %-12s", "-")
+				fmt.Printf("%-11s", "-")
 			}
 		}
 		fmt.Println()
 	}
-
-	// 打印总计行
-	if totalConnections > 0 {
-		fmt.Print(strings.Repeat("-", 10))
-		for range tcpStates {
-			fmt.Print(strings.Repeat("-", 16))
-		}
-		fmt.Println()
-
-		fmt.Printf("%-10s", "总计")
-		for _, state := range tcpStates {
-			total := totalByState[state]
-			if total > 0 {
-				fmt.Printf(" | %-12d", total)
-			} else {
-				fmt.Printf(" | %-12s", "-")
-			}
-		}
-		fmt.Println()
-	}
-
-	fmt.Printf("\n总连接数: %d\n", totalConnections)
 }
