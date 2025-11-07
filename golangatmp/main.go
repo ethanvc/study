@@ -8,6 +8,7 @@ func main() {
 
 //go:noinline
 func mainGosched() {
+	runtime.GOMAXPROCS(2)
 	for {
 		runtime.Gosched()
 	}
