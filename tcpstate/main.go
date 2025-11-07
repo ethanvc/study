@@ -57,7 +57,7 @@ var tcpStates = []string{
 	"FIN_WAIT1",
 	"FIN_WAIT2",
 	"TIME_WAIT",
-	"CLOSE",
+	"CLOSED",
 	"CLOSE_WAIT",
 	"LAST_ACK",
 	"LISTEN",
@@ -92,7 +92,7 @@ func collectTCPStats(remotePortsStr []string) []TCPStats {
 	}
 
 	// 获取所有TCP连接
-	connections, err := net.Connections("tcp")
+	connections, err := net.Connections("all")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "获取TCP连接失败: %v\n", err)
 		return nil
@@ -103,20 +103,17 @@ func collectTCPStats(remotePortsStr []string) []TCPStats {
 
 	for _, conn := range connections {
 		port := conn.Raddr.Port
-		if port == 0 {
-			// for listen state, only have laddr.port
+		if !remotePorts[port] {
 			port = conn.Laddr.Port
 		}
 		if !remotePorts[port] {
 			continue
 		}
 
-		// 初始化端口统计
 		if statsMap[port] == nil {
 			statsMap[port] = make(map[string]int)
 		}
 
-		// 统计状态
 		state := conn.Status
 		mustValidStatus(state)
 		statsMap[port][state]++

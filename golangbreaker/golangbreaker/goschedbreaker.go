@@ -37,12 +37,14 @@ func (b *GoSchedBreaker) testOverload() bool {
 	const routingCount = 3
 	var wg sync.WaitGroup
 	var seconds [routingCount]float64
+	wg.Add(routingCount)
 	for i := 0; i < routingCount; i++ {
-		wg.Go(func() {
+		go func() {
+			defer wg.Done()
 			start := time.Now()
 			runtime.Gosched()
 			seconds[i] = time.Since(start).Seconds()
-		})
+		}()
 	}
 	wg.Wait()
 	var avg float64
