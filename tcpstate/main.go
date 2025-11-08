@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -38,7 +39,8 @@ func main() {
 }
 
 var sStatusSLice = []string{
-	"LISTEN", "ESTABLISHED", "SYN_SENT", "CLOSE_WAIT", "TIME_WAIT"}
+	"LISTEN", "FIN_WAIT_1", "ESTABLISHED", "SYN_SENT", "CLOSE_WAIT",
+	"TIME_WAIT", "LAST_ACK", "CLOSED"}
 
 func mustValidStatus(s string) {
 	for _, status := range sStatusSLice {
@@ -99,6 +101,9 @@ func getStatistic(connections []*ConnectionInfo, targetPosts *orderedmap.Ordered
 func getPort(addr net.Addr) int {
 	switch realAddr := addr.(type) {
 	case *net.TCPAddr:
+		if realAddr == nil {
+			return 0
+		}
 		return realAddr.Port
 	default:
 		return 0
@@ -112,12 +117,12 @@ type ConnectionInfo struct {
 }
 
 func AllConnections() ([]*ConnectionInfo, error) {
-	cmd := exec.Command("netstat", "-ptcp", "-nl")
+	cmd := exec.Command("netstat", "-ptcp", "-anl")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
-	reg := regexp.MustCompile(`(\w+)\s+(\d+)\s+(\d+)\s+([\w.:]+)\s+([\w.:]+)\s+([\w_]+)`)
+	reg := regexp.MustCompile(`(\w+)\s+(\d+)\s+(\d+)\s+([\w.:*]+)\s+([\w.:*]+)\s+([\w_]+)`)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	var result []*ConnectionInfo
 	for scanner.Scan() {
@@ -130,14 +135,11 @@ func AllConnections() ([]*ConnectionInfo, error) {
 		raddrStr := parts[5]
 		status := parts[6]
 		laddrStr = convertToStandardAddress(laddrStr)
-		laddr, err := net.ResolveTCPAddr("tcp", laddrStr)
-		if err != nil {
-			return nil, err
-		}
+		laddr, err1 := net.ResolveTCPAddr("tcp", laddrStr)
 		raddrStr = convertToStandardAddress(raddrStr)
-		raddr, err := net.ResolveTCPAddr("tcp", raddrStr)
-		if err != nil {
-			return nil, err
+		raddr, err2 := net.ResolveTCPAddr("tcp", raddrStr)
+		if err1 != nil && err2 != nil {
+			return nil, errors.Join(err1, err2)
 		}
 		mustValidStatus(status)
 		result = append(result, &ConnectionInfo{
@@ -150,18 +152,23 @@ func AllConnections() ([]*ConnectionInfo, error) {
 }
 
 func convertToStandardAddress(addr string) string {
+	result := ""
 	if strings.Contains(addr, ":") {
 		idx := strings.LastIndexByte(addr, '.')
 		if idx == -1 {
 			return ""
 		}
-		return "[" + addr[:idx] + "]:" + addr[idx+1:]
+		result = "[" + addr[:idx] + "]:" + addr[idx+1:]
 
 	} else {
 		idx := strings.LastIndexByte(addr, '.')
 		if idx == -1 {
 			return ""
 		}
-		return addr[:idx] + ":" + addr[idx+1:]
+		result = addr[:idx] + ":" + addr[idx+1:]
 	}
+	if strings.ContainsRune(result, '*') {
+		result = strings.Replace(result, "*", "", 1)
+	}
+	return result
 }

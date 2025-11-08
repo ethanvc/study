@@ -211,3 +211,4 @@ __marimo__/
 *.swp
 *.txt
 .DS_Store
+*.bin
