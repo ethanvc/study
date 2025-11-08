@@ -40,7 +40,7 @@ func main() {
 
 var sStatusSLice = []string{
 	"LISTEN", "FIN_WAIT_1", "ESTABLISHED", "SYN_SENT", "CLOSE_WAIT",
-	"TIME_WAIT", "LAST_ACK", "CLOSED"}
+	"TIME_WAIT", "LAST_ACK", "CLOSED", "CLOSING", "FIN_WAIT_2", "SYN_RCVD"}
 
 func mustValidStatus(s string) {
 	for _, status := range sStatusSLice {
@@ -54,14 +54,14 @@ func mustValidStatus(s string) {
 func printResult(statistic map[int]map[string]int, targetPosts *orderedmap.OrderedMap[int, bool]) {
 	fmt.Println(strings.Repeat("=", 120))
 	fmt.Printf("%s\n", time.Now().Format(time.DateTime))
-	fmt.Printf("%12s", "SVR_PORT")
+	fmt.Printf("%8s", "SVR_PORT")
 	for _, val := range sStatusSLice {
 		fmt.Printf("%12s", val)
 	}
 	fmt.Printf("\n")
 	for port := range targetPosts.AllFromFront() {
 		stat := statistic[port]
-		fmt.Printf("%12d", port)
+		fmt.Printf("%8d", port)
 		for _, val := range sStatusSLice {
 			fmt.Printf("%12s", getCountOr(stat, val, "-"))
 		}
@@ -133,12 +133,18 @@ func AllConnections() ([]*ConnectionInfo, error) {
 		}
 		laddrStr := parts[4]
 		raddrStr := parts[5]
+		if isAddrInBlackList(laddrStr) && isAddrInBlackList(raddrStr) {
+			continue
+		}
 		status := parts[6]
 		laddrStr = convertToStandardAddress(laddrStr)
 		laddr, err1 := net.ResolveTCPAddr("tcp", laddrStr)
 		raddrStr = convertToStandardAddress(raddrStr)
 		raddr, err2 := net.ResolveTCPAddr("tcp", raddrStr)
 		if err1 != nil && err2 != nil {
+			if laddrStr == "*:*" && raddrStr == "*:*" {
+				continue
+			}
 			return nil, errors.Join(err1, err2)
 		}
 		mustValidStatus(status)
@@ -171,4 +177,13 @@ func convertToStandardAddress(addr string) string {
 		result = strings.Replace(result, "*", "", 1)
 	}
 	return result
+}
+
+func isAddrInBlackList(addr string) bool {
+	switch addr {
+	case "*.*":
+		return true
+	default:
+		return false
+	}
 }
