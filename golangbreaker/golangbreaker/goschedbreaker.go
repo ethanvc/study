@@ -29,7 +29,7 @@ func (b *GoSchedBreaker) run() {
 	for {
 		overload := b.testOverload()
 		b.overload.Store(overload)
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -52,7 +52,7 @@ func (b *GoSchedBreaker) testOverload() bool {
 		avg += seconds[i]
 	}
 	avg /= float64(routingCount)
-	if avg > 0.001 {
+	if avg > 0.1 {
 		return true
 	} else {
 		return false
