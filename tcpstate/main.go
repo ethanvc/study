@@ -1,19 +1,14 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
-	"errors"
 	"fmt"
-	"net"
 	"os"
-	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/elliotchance/orderedmap/v3"
+	"github.com/ethanvc/study/tcpstate/tcpstate"
 )
 
 func main() {
@@ -26,51 +21,56 @@ func main() {
 		}
 		targetPosts.Set(port, true)
 	}
+	var oldConnections map[string]*tcpstate.ConnectionInfo
 	for {
-		connections, err := AllConnections()
+		connections, err := tcpstate.GetAllConnections()
 		if err != nil {
 			panic(err)
 		}
-		statistic := getStatistic(connections, targetPosts)
-		printResult(statistic, targetPosts)
+		statistic, dynStatistic := getStatistic(oldConnections, connections, targetPosts)
+		printResult(statistic, dynStatistic, targetPosts)
+		oldConnections = connectionSliceToMap(connections)
 		time.Sleep(2 * time.Second)
 	}
 
 }
 
-var sStatusSLice = []string{
-	"LISTEN", "FIN_WAIT_1", "ESTABLISHED", "SYN_SENT", "CLOSE_WAIT",
-	"TIME_WAIT", "LAST_ACK", "CLOSED", "CLOSING", "FIN_WAIT_2", "SYN_RCVD"}
-
-func mustValidStatus(s string) {
-	for _, status := range sStatusSLice {
-		if s == status {
-			return
-		}
+func connectionSliceToMap(connections []*tcpstate.ConnectionInfo) map[string]*tcpstate.ConnectionInfo {
+	m := make(map[string]*tcpstate.ConnectionInfo)
+	for _, conn := range connections {
+		m[conn.GetId()] = conn
 	}
-	panic("invalid status: " + s)
+	return m
 }
 
-func printResult(statistic map[int]map[string]int, targetPosts *orderedmap.OrderedMap[int, bool]) {
+func printResult(statistic map[int]map[tcpstate.Status]int,
+	dynStatistic map[int]map[tcpstate.Status]int,
+	targetPosts *orderedmap.OrderedMap[int, bool]) {
 	fmt.Println(strings.Repeat("=", 120))
 	fmt.Printf("%s\n", time.Now().Format(time.DateTime))
 	fmt.Printf("%8s", "SVR_PORT")
-	for _, val := range sStatusSLice {
-		fmt.Printf("%12s", val)
+	for _, val := range tcpstate.AllStatus {
+		fmt.Printf("%11s", val)
 	}
 	fmt.Printf("\n")
 	for port := range targetPosts.AllFromFront() {
 		stat := statistic[port]
+		dynStat := dynStatistic[port]
 		fmt.Printf("%8d", port)
-		for _, val := range sStatusSLice {
-			fmt.Printf("%12s", getCountOr(stat, val, "-"))
+		for _, val := range tcpstate.AllStatus {
+			fmt.Printf("%11s", getCountOr(stat, val, "-"))
+		}
+		fmt.Printf("\n")
+		fmt.Printf("%8s", " ")
+		for _, val := range tcpstate.AllStatus {
+			fmt.Printf("%11s", getCountOr(dynStat, val, "-"))
 		}
 		fmt.Printf("\n")
 	}
 	fmt.Printf("\n\n")
 }
 
-func getCountOr(m map[string]int, key, placeholder string) string {
+func getCountOr(m map[tcpstate.Status]int, key tcpstate.Status, placeholder string) string {
 	if val, ok := m[key]; ok {
 		return strconv.Itoa(val)
 	} else {
@@ -78,112 +78,23 @@ func getCountOr(m map[string]int, key, placeholder string) string {
 	}
 }
 
-func getStatistic(connections []*ConnectionInfo, targetPosts *orderedmap.OrderedMap[int, bool]) map[int]map[string]int {
-	statistic := make(map[int]map[string]int)
+func getStatistic(oldConnections map[string]*tcpstate.ConnectionInfo,
+	connections []*tcpstate.ConnectionInfo, targetPosts *orderedmap.OrderedMap[int, bool]) (map[int]map[tcpstate.Status]int,
+	map[int]map[tcpstate.Status]int) {
+	statistic := make(map[int]map[tcpstate.Status]int)
+	dynStatistic := make(map[int]map[tcpstate.Status]int)
+	for port := range targetPosts.AllFromFront() {
+		statistic[port] = make(map[tcpstate.Status]int)
+		dynStatistic[port] = make(map[tcpstate.Status]int)
+	}
 	for _, connection := range connections {
-		port := getPort(connection.LAddr)
-		if !targetPosts.Has(port) {
-			port = getPort(connection.RAddr)
-		}
-		if !targetPosts.Has(port) {
+		if !targetPosts.Has(connection.SvrPort) {
 			continue
 		}
-		portStatistic := statistic[port]
-		if portStatistic == nil {
-			portStatistic = make(map[string]int)
-			statistic[port] = portStatistic
+		statistic[connection.SvrPort][connection.Status]++
+		if oldConnections[connection.GetId()] == nil {
+			dynStatistic[connection.SvrPort][connection.Status]++
 		}
-		portStatistic[connection.Status]++
 	}
-	return statistic
-}
-
-func getPort(addr net.Addr) int {
-	switch realAddr := addr.(type) {
-	case *net.TCPAddr:
-		if realAddr == nil {
-			return 0
-		}
-		return realAddr.Port
-	default:
-		return 0
-	}
-}
-
-type ConnectionInfo struct {
-	LAddr  net.Addr
-	RAddr  net.Addr
-	Status string
-}
-
-func AllConnections() ([]*ConnectionInfo, error) {
-	cmd := exec.Command("netstat", "-ptcp", "-anl")
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-	reg := regexp.MustCompile(`(\w+)\s+(\d+)\s+(\d+)\s+([\w.:*]+)\s+([\w.:*]+)\s+([\w_]+)`)
-	scanner := bufio.NewScanner(bytes.NewReader(output))
-	var result []*ConnectionInfo
-	for scanner.Scan() {
-		line := scanner.Text()
-		parts := reg.FindStringSubmatch(line)
-		if len(parts) != 7 {
-			continue
-		}
-		laddrStr := parts[4]
-		raddrStr := parts[5]
-		if isAddrInBlackList(laddrStr) && isAddrInBlackList(raddrStr) {
-			continue
-		}
-		status := parts[6]
-		laddrStr = convertToStandardAddress(laddrStr)
-		laddr, err1 := net.ResolveTCPAddr("tcp", laddrStr)
-		raddrStr = convertToStandardAddress(raddrStr)
-		raddr, err2 := net.ResolveTCPAddr("tcp", raddrStr)
-		if err1 != nil && err2 != nil {
-			if laddrStr == "*:*" && raddrStr == "*:*" {
-				continue
-			}
-			return nil, errors.Join(err1, err2)
-		}
-		mustValidStatus(status)
-		result = append(result, &ConnectionInfo{
-			LAddr:  laddr,
-			RAddr:  raddr,
-			Status: status,
-		})
-	}
-	return result, nil
-}
-
-func convertToStandardAddress(addr string) string {
-	result := ""
-	if strings.Contains(addr, ":") {
-		idx := strings.LastIndexByte(addr, '.')
-		if idx == -1 {
-			return ""
-		}
-		result = "[" + addr[:idx] + "]:" + addr[idx+1:]
-
-	} else {
-		idx := strings.LastIndexByte(addr, '.')
-		if idx == -1 {
-			return ""
-		}
-		result = addr[:idx] + ":" + addr[idx+1:]
-	}
-	if strings.ContainsRune(result, '*') {
-		result = strings.Replace(result, "*", "", 1)
-	}
-	return result
-}
-
-func isAddrInBlackList(addr string) bool {
-	switch addr {
-	case "*.*":
-		return true
-	default:
-		return false
-	}
+	return statistic, dynStatistic
 }
