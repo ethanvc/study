@@ -69,6 +69,8 @@ func (b *Bench) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(result))
 }
 
+const ResultOk = "OK"
+
 func (b *Bench) Work(ctx context.Context) string {
 	start := time.Now()
 	result := b.work(ctx)
@@ -116,7 +118,7 @@ func parseJsonPayload(ctx context.Context) string {
 			return "ErrorUnmarshal"
 		}
 	}
-	return "OK"
+	return ResultOk
 }
 
 var sJsonStr = `
