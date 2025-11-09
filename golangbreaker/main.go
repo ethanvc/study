@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -61,29 +64,23 @@ func NewBench() *Bench {
 
 func (b *Bench) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	io.ReadAll(r.Body)
-	result := b.Work()
+	result := b.Work(r.Context())
 	_, _ = w.Write([]byte(result))
 }
 
-func (b *Bench) Work() string {
+func (b *Bench) Work(ctx context.Context) string {
 	start := time.Now()
-	result := b.work()
+	result := b.work(ctx)
 	requestTotal.WithLabelValues(b.breaker.Name(), result).Inc()
 	durationTotal.WithLabelValues(b.breaker.Name()).Observe(time.Since(start).Seconds())
 	return result
 }
 
-func (b *Bench) work() string {
+func (b *Bench) work(ctx context.Context) string {
 	if b.breaker.Break() {
 		return "FastReject"
 	}
-	resp, err := http.Get("https://www.baidu.com/")
-	if err != nil {
-		return "Error"
-	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
-	return "OK"
+	return redisPayload(ctx)
 }
 
 func clearEnv(s string) {
@@ -91,3 +88,21 @@ func clearEnv(s string) {
 	os.Unsetenv(strings.ToLower(s))
 	os.Unsetenv(strings.ToUpper(s))
 }
+
+func redisPayload(ctx context.Context) string {
+	cmd := sRdb.Get(ctx, "key")
+	if cmd.Err() != nil {
+		if errors.Is(cmd.Err(), redis.Nil) {
+			return "OK"
+		}
+		return "Error"
+	}
+	return "OK"
+}
+
+var sRdb = redis.NewUniversalClient(&redis.UniversalOptions{
+	Addrs: []string{"localhost:6379"}, // Redis 地址
+	// 不设置密码
+	DB:       0,  // 默认数据库
+	PoolSize: 10, // 连接池大小
+})
