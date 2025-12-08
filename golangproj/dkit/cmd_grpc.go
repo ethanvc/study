@@ -9,7 +9,12 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/encoding"
 )
+
+func init() {
+	encoding.RegisterCodec(JsonCodec{})
+}
 
 func AddGrpcCmd(rootCmd *cobra.Command) {
 	cmd := &cobra.Command{

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// GOOS=linux GOARCH=amd64 go build -o dkit main.go
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "dkit",
