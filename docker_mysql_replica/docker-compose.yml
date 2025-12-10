@@ -12,6 +12,8 @@ services:
       MYSQL_PASSWORD: testpass
     ports:
       - "3306:3306"
+    volumes:
+      - ./mysql-1/my.cnf:/etc/mysql/conf.d/my.cnf
     command: --default-authentication-plugin=mysql_native_password
     networks:
       - mysql-network
@@ -26,6 +28,8 @@ services:
       MYSQL_PASSWORD: testpass
     ports:
       - "3307:3306"
+    volumes:
+      - ./mysql-2/my.cnf:/etc/mysql/conf.d/my.cnf
     command: --default-authentication-plugin=mysql_native_password
     networks:
       - mysql-network
@@ -40,6 +44,8 @@ services:
       MYSQL_PASSWORD: testpass
     ports:
       - "3308:3306"
+    volumes:
+      - ./mysql-3/my.cnf:/etc/mysql/conf.d/my.cnf
     command: --default-authentication-plugin=mysql_native_password
     networks:
       - mysql-network
