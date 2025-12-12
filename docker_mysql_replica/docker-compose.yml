@@ -1,0 +1,61 @@
+# 三个独立的 MySQL 服务器
+# 使用方法：docker compose up -d
+
+services:
+  mysql-1:
+    image: ubuntu/mysql:8.0-22.04_edge
+    container_name: mysql-1
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpass
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql-1/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./mysql-1/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./replica_scripts:/replica_scripts:ro
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - mysql-network
+
+  mysql-2:
+    image: ubuntu/mysql:8.0-22.04_edge
+    container_name: mysql-2
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpass
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./mysql-2/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./mysql-2/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./replica_scripts:/replica_scripts:ro
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - mysql-network
+
+  mysql-3:
+    image: ubuntu/mysql:8.0-22.04_edge
+    container_name: mysql-3
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpass
+    ports:
+      - "3308:3306"
+    volumes:
+      - ./mysql-3/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./mysql-3/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./replica_scripts:/replica_scripts:ro
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - mysql-network
+
+networks:
+  mysql-network:
+    driver: bridge

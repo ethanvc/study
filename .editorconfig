@@ -1,0 +1,11 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# 禁用 SQL 文件的格式化
+[*.sql]
+trim_trailing_whitespace = false
+insert_final_newline = true
+charset = utf-8
+
