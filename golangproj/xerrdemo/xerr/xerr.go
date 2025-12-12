@@ -6,12 +6,17 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+type Payload struct {
+	Key string
+	Val any
+}
+
 type Error struct {
 	// DO NOT ACCESS DIRECTLY. here use public field only for marshal/unmarshal
-	Code  codes.Code
-	Event []string
-	Msg   string
-	Err   error
+	Code    codes.Code
+	Event   []string
+	Msg     string
+	Details []Payload
 }
 
 func New(code codes.Code, event string) *Error {
@@ -24,10 +29,47 @@ func New(code codes.Code, event string) *Error {
 	return err
 }
 
+func (e *Error) GetCode() codes.Code {
+	if e == nil {
+		return codes.OK
+	}
+	return e.Code
+}
+
+func (e *Error) GetEvent() []string {
+	if e == nil {
+		return []string{}
+	}
+	return e.Event
+}
+
+func (e *Error) GetMsg() string {
+	if e == nil {
+		return ""
+	}
+	return e.Msg
+}
+
+func (e *Error) GetDetails() []Payload {
+	if e == nil {
+		return nil
+	}
+	return e.Details
+}
+
+func (e *Error) AppendEvent(event string) *Error {
+	const maxAllowedEvent = 10
+	if len(e.Event) > maxAllowedEvent {
+		return e
+	}
+	e.Event = append(e.Event, event)
+	return e
+}
+
 const delimiter = ';'
 
-func (e *Error) GerReportEvent() string {
-	if e == nil {
+func (e *Error) GetReportEvent() string {
+	if e.GetCode() != codes.OK {
 		return codes.OK.String()
 	}
 	buf := bytes.NewBuffer(nil)
@@ -39,11 +81,9 @@ func (e *Error) GerReportEvent() string {
 	return buf.String()
 }
 
-func (e *Error) SetErr(err error) *Error {
-	e.Err = err
-	return e
-}
-
 func (e *Error) Error() string {
-	return ""
+	if e.GetCode() == codes.OK {
+		return codes.OK.String()
+	}
+	return e.GetReportEvent() + ";" + e.Msg
 }

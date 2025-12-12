@@ -11,5 +11,4 @@ func TestError_Usage(t *testing.T) {
 	// for details:
 	err := New(codes.NotFound, "TxnNotFound")
 	_ = err
-
 }
