@@ -7,18 +7,19 @@ import (
 )
 
 type Error struct {
-	code  codes.Code
-	event []string
-	msg   string
-	err   error
+	// DO NOT ACCESS DIRECTLY. here use public field only for marshal/unmarshal
+	Code  codes.Code
+	Event []string
+	Msg   string
+	Err   error
 }
 
 func New(code codes.Code, event string) *Error {
 	err := &Error{
-		code: code,
+		Code: code,
 	}
 	if event != "" {
-		err.event = []string{event}
+		err.Event = []string{event}
 	}
 	return err
 }
@@ -30,8 +31,8 @@ func (e *Error) GerReportEvent() string {
 		return codes.OK.String()
 	}
 	buf := bytes.NewBuffer(nil)
-	buf.WriteString(e.code.String())
-	for _, event := range e.event {
+	buf.WriteString(e.Code.String())
+	for _, event := range e.Event {
 		buf.WriteByte(delimiter)
 		buf.WriteString(event)
 	}
@@ -39,7 +40,7 @@ func (e *Error) GerReportEvent() string {
 }
 
 func (e *Error) SetErr(err error) *Error {
-	e.err = err
+	e.Err = err
 	return e
 }
 
