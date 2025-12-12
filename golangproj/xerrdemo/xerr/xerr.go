@@ -7,16 +7,16 @@ import (
 )
 
 type Payload struct {
-	Key string
-	Val any
+	Key string `json:"key"`
+	Val any    `json:"val"`
 }
 
 type Error struct {
 	// DO NOT ACCESS DIRECTLY. here use public field only for marshal/unmarshal
-	Code    codes.Code
-	Event   []string
-	Msg     string
-	Details []Payload
+	Code    codes.Code `json:"code"`
+	Event   []string   `json:"event,omitempty"`
+	Msg     string     `json:"msg,omitempty"`
+	Details []Payload  `json:"details,omitempty"`
 }
 
 func New(code codes.Code, event string) *Error {
