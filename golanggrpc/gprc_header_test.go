@@ -11,9 +11,8 @@ import (
 
 func Test_PassByHeader(t *testing.T) {
 	ctx := context.Background()
-	s, conn := createPair(t)
-	defer s.Stop()
-	defer conn.Close()
+	_, conn, cancel := createPair(t)
+	defer cancel()
 
 	cli := NewGreeterClient(conn)
 	var header metadata.MD
