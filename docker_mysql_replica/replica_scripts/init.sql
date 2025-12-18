@@ -3,11 +3,10 @@
 -- ============================================
 
 -- 创建复制用户
-CREATE USER IF NOT EXISTS 'repl_user'@'%' IDENTIFIED WITH mysql_native_password BY 'repl123';
+CREATE USER IF NOT EXISTS 'repl_user'@'%' IDENTIFIED WITH mysql_native_password BY '123456';
 
 -- 授予复制权限
-GRANT REPLICATION SLAVE ON *.* TO 'repl_user'@'%';
-
+GRANT REPLICATION SLAVE,REPLICATION_SLAVE_ADMIN,REPLICATION CLIENT ON *.* TO 'repl_user'@'%';
 -- 刷新权限
 FLUSH PRIVILEGES;
 
