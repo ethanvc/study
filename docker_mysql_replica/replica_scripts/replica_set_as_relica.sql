@@ -10,6 +10,7 @@ SET GLOBAL rpl_semi_sync_replica_enabled = ON;
 -- 设置只读模式
 SET GLOBAL read_only = ON;
 SET GLOBAL super_read_only = ON;
+SET GLOBAL offline_mode = ON;
 
 -- 配置复制源（主库）
 -- 请根据实际情况修改 SOURCE_HOST

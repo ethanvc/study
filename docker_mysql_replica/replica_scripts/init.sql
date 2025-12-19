@@ -1,5 +1,5 @@
 -- ============================================
--- 公共初始化脚本 - 用于主从复制环境
+-- mysql 初始化
 -- ============================================
 
 -- 创建复制用户
@@ -13,5 +13,9 @@ FLUSH PRIVILEGES;
 -- 显示创建的用户
 SELECT CONCAT('Replication user created: ', User, '@', Host) AS Info 
 FROM mysql.user 
-WHERE User='repl';
+WHERE User='repl_user';
 
+
+SET PERSIST super_read_only = OFF;
+SET PERSIST read_only = OFF;
+SET PERSIST offline_mode = OFF;

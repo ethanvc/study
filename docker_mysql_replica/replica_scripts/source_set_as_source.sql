@@ -18,7 +18,7 @@ SET GLOBAL rpl_semi_sync_source_wait_point = 'AFTER_SYNC';
 
 SET GLOBAL read_only = OFF;
 SET GLOBAL super_read_only = OFF;
-
+SET GLOBAL offline_mode = OFF;
 
 
 -- 显示当前半同步主库状态
