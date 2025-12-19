@@ -60,7 +60,7 @@ func (s *server) Echo(ctx context.Context, in *EchoContent) (*EchoContent, error
 	return in, nil
 }
 
-func createPair(t *testing.T, opts ...grpc.DialOption) (*grpc.Server, *grpc.ClientConn) {
+func createPair(t *testing.T, opts ...grpc.DialOption) (*grpc.Server, *grpc.ClientConn, func()) {
 	s := grpc.NewServer()
 	RegisterGreeterServer(s, &server{})
 	ln, err := net.Listen("tcp", ":22222")
@@ -75,14 +75,16 @@ func createPair(t *testing.T, opts ...grpc.DialOption) (*grpc.Server, *grpc.Clie
 	realOpts = append(realOpts, opts...)
 	conn, err := grpc.NewClient("localhost:22222", realOpts...)
 	require.NoError(t, err)
-	return s, conn
+	return s, conn, func() {
+		s.Stop()
+		conn.Close()
+	}
 }
 
 func Test_IdleTimer(t *testing.T) {
 	ctx := context.Background()
-	svr, conn := createPair(t, grpc.WithIdleTimeout(time.Second))
-	defer svr.Stop()
-	defer conn.Close()
+	_, conn, cancel := createPair(t, grpc.WithIdleTimeout(time.Second))
+	defer cancel()
 	cli := NewGreeterClient(conn)
 	_, err := cli.SayHello(ctx, &HelloRequest{})
 	require.NoError(t, err)
@@ -91,9 +93,8 @@ func Test_IdleTimer(t *testing.T) {
 
 func Test_1(t *testing.T) {
 	ctx := context.Background()
-	s, conn := createPair(t)
-	defer s.Stop()
-	defer conn.Close()
+	_, conn, cancel := createPair(t)
+	defer cancel()
 
 	cli := NewGreeterClient(conn)
 	_, err := cli.SayHello(ctx, &HelloRequest{})
@@ -102,9 +103,8 @@ func Test_1(t *testing.T) {
 
 func Test_MetaData(t *testing.T) {
 	ctx := context.Background()
-	s, conn := createPair(t)
-	defer s.Stop()
-	defer conn.Close()
+	_, conn, cancel := createPair(t)
+	defer cancel()
 
 	cli := NewGreeterClient(conn)
 	var header metadata.MD
@@ -117,9 +117,8 @@ func Test_MetaData(t *testing.T) {
 
 func Test_ReturnTwoNil(t *testing.T) {
 	ctx := context.Background()
-	s, conn := createPair(t)
-	defer s.Stop()
-	defer conn.Close()
+	_, conn, cancel := createPair(t)
+	defer cancel()
 
 	cli := NewGreeterClient(conn)
 	resp, err := cli.SayHelloReturnNil(ctx, &HelloRequest{})
@@ -140,9 +139,8 @@ func Test_RingHashBalancer(t *testing.T) {
 			}
 		]
 	}`
-	s, conn := createPair(t, grpc.WithDefaultServiceConfig(serviceConfig))
-	defer s.Stop()
-	defer conn.Close()
+	_, conn, cancel := createPair(t, grpc.WithDefaultServiceConfig(serviceConfig))
+	defer cancel()
 
 	cli := NewGreeterClient(conn)
 	resp, err := cli.SayHello(ctx, &HelloRequest{})

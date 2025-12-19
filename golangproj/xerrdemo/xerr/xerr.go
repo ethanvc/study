@@ -2,6 +2,7 @@ package xerr
 
 import (
 	"bytes"
+	"fmt"
 
 	"google.golang.org/grpc/codes"
 )
@@ -55,6 +56,11 @@ func (e *Error) GetDetails() []Payload {
 		return nil
 	}
 	return e.Details
+}
+
+func (e *Error) SetMsg(msg string, args ...any) *Error {
+	e.Msg = fmt.Sprintf(msg, args...)
+	return e
 }
 
 func (e *Error) AppendEvent(event string) *Error {
