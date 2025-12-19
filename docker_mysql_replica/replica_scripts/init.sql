@@ -16,6 +16,6 @@ FROM mysql.user
 WHERE User='repl_user';
 
 
-SET PERSIST super_read_only = OFF;
-SET PERSIST read_only = OFF;
-SET PERSIST offline_mode = OFF;
+SET PERSIST super_read_only = ON;
+SET PERSIST read_only = ON;
+SET PERSIST offline_mode = ON;
