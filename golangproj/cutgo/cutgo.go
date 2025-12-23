@@ -1,14 +1,25 @@
-package minihandler
+package cutgo
 
 import (
 	"context"
 	"errors"
 )
 
-type Interceptor[CallInfo any] func(ctx context.Context, method string, req, resp any, info *CallInfo,
-	next Handler[CallInfo]) error
+type HandlerFunc func(ctx context.Context, req any, resp any) error
 
-type Handler[CallInfo any] func(ctx context.Context, method string, req, resp any, info *CallInfo) error
+type Handler[CallInfo any] struct {
+	HandlerFunc  HandlerFunc
+	newReq       func() any
+	newResp      func() any
+	interceptors InterceptorChan[CallInfo]
+}
+
+type Interceptor[CallInfo any] func(ctx context.Context, method string, req, resp any,
+	info *CallInfo, next Next[CallInfo]) error
+
+type InterceptorChan[CallInfo any] []Interceptor[CallInfo]
+
+type Next[CallInfo any] func(ctx context.Context, method string, req, resp any, info *CallInfo) error
 
 type HandlerInfo[CallInfo any] struct {
 	handler   func(ctx context.Context, req, resp any) error
