@@ -8,58 +8,50 @@ import (
 type HandlerFunc func(ctx context.Context, req any, resp any) error
 
 type Handler[CallInfo any] struct {
-	HandlerFunc  HandlerFunc
-	newReq       func() any
-	newResp      func() any
-	interceptors InterceptorChan[CallInfo]
+	HandlerFunc  func(ctx context.Context, req any, resp any, info *CallInfo) error
+	interceptors InterceptorChain[CallInfo]
+}
+
+func NewHandler[Req, Resp, CallInfo any](hh func(ctx context.Context, req Req, resp Resp, info *CallInfo) error) *Handler[CallInfo] {
+	h := &Handler[CallInfo]{}
+	h.HandlerFunc = func(ctx context.Context, req any, resp any, info *CallInfo) error {
+		realReq, ok := req.(Req)
+		if !ok {
+			return errors.New("invalid request type")
+		}
+		realResp, ok := resp.(Resp)
+		if !ok {
+			return errors.New("invalid response type")
+		}
+		return hh(ctx, realReq, realResp, info)
+	}
+	return h
+}
+
+func (h *Handler[CallInfo]) Call(ctx context.Context, method string, req any, resp any, info *CallInfo) error {
+	n := Next[CallInfo]{
+		idx:     0,
+		handler: h,
+	}
+	return n.Call(ctx, method, req, resp, info)
 }
 
 type Interceptor[CallInfo any] func(ctx context.Context, method string, req, resp any,
 	info *CallInfo, next Next[CallInfo]) error
 
-type InterceptorChan[CallInfo any] []Interceptor[CallInfo]
+type InterceptorChain[CallInfo any] []Interceptor[CallInfo]
 
-type Next[CallInfo any] func(ctx context.Context, method string, req, resp any, info *CallInfo) error
-
-type HandlerInfo[CallInfo any] struct {
-	handler   func(ctx context.Context, req, resp any) error
-	newReq    func() any
-	newResp   func() any
-	unmarshal func(ctx context.Context, info *CallInfo) (any, error)
-	marshal   func(ctx context.Context, resp any, info *CallInfo) ([]byte, error)
+type Next[CallInfo any] struct {
+	idx     int
+	handler *Handler[CallInfo]
 }
 
-func NewHandlerInfo[CallInfo any, Req, Resp any](f func(ctx context.Context, req *Req, resp *Resp) error) *HandlerInfo[CallInfo] {
-	h := &HandlerInfo[CallInfo]{
-		handler: func(ctx context.Context, req, resp any) error {
-			realReq, ok := req.(*Req)
-			if !ok {
-				return errors.New("fatal error: invalid request type")
-			}
-			realResp, ok := resp.(*Resp)
-			if !ok {
-				return errors.New("fatal error: invalid response type")
-			}
-			return f(ctx, realReq, realResp)
-		},
-		newReq: func() any {
-			return new(Req)
-		},
-		newResp: func() any {
-			return new(Resp)
-		},
+func (n Next[CallInfo]) Call(ctx context.Context, method string, req any, resp any, info *CallInfo) error {
+	if n.idx >= len(n.handler.interceptors) {
+		return n.handler.HandlerFunc(ctx, req, resp, info)
 	}
-	return h
-}
-
-func (h *HandlerInfo[CallInfo]) NewReq() any {
-	return h.newReq()
-}
-
-func (h *HandlerInfo[CallInfo]) NewResp() any {
-	return h.newResp()
-}
-
-func (h *HandlerInfo[CallInfo]) Call(ctx context.Context, req, resp any) error {
-	return h.handler(ctx, req, resp)
+	interceptor := n.handler.interceptors[n.idx]
+	newN := n
+	newN.idx++
+	return interceptor(ctx, method, req, resp, info, newN)
 }
