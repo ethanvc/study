@@ -1,0 +1,93 @@
+# PostgreSQL 主从复制环境（1主2从，同步复制）
+# 使用方法：docker compose up -d
+
+services:
+  postgres-1:
+    image: postgres:16
+    container_name: postgres-1
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: testdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres-1/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres-1/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./postgres-1/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./replica_scripts:/replica_scripts:ro
+      - postgres-1-data:/var/lib/postgresql/data
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+    networks:
+      - postgres-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-2:
+    image: postgres:16
+    container_name: postgres-2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: testdb
+      # 从库需要的环境变量
+      PGUSER: postgres
+      PGPASSWORD: 123456
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./postgres-2/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres-2/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./replica_scripts:/replica_scripts:ro
+      - postgres-2-data:/var/lib/postgresql/data
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+    networks:
+      - postgres-network
+    depends_on:
+      postgres-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-3:
+    image: postgres:16
+    container_name: postgres-3
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: testdb
+      PGUSER: postgres
+      PGPASSWORD: 123456
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./postgres-3/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres-3/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./replica_scripts:/replica_scripts:ro
+      - postgres-3-data:/var/lib/postgresql/data
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+    networks:
+      - postgres-network
+    depends_on:
+      postgres-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  postgres-network:
+    driver: bridge
+
+volumes:
+  postgres-1-data:
+  postgres-2-data:
+  postgres-3-data:

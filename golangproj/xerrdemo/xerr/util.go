@@ -39,7 +39,7 @@ func BlockBusinessErr(err error) error {
 
 func Convert(err error) *Error {
 	realErr, ok := err.(*Error)
-	if !ok {
+	if ok {
 		return realErr
 	}
 	return New(codes.Unknown, "UnknownErr").SetMsg(err.Error())
