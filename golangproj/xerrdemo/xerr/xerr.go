@@ -75,7 +75,7 @@ func (e *Error) AppendEvent(event string) *Error {
 const delimiter = ';'
 
 func (e *Error) GetReportEvent() string {
-	if e.GetCode() != codes.OK {
+	if e.GetCode() == codes.OK {
 		return codes.OK.String()
 	}
 	buf := bytes.NewBuffer(nil)
