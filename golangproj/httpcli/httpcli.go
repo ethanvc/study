@@ -28,6 +28,10 @@ func (cli *Client) Do(ctx context.Context, url string, req, resp any, opts *Opti
 	if opts == nil {
 		opts = &Options{}
 	}
+	ctx, cancel := cli.handleTimeout(ctx, opts.Timeout)
+	if cancel != nil {
+		defer cancel()
+	}
 	next := Next{
 		interceptors: cli.Interceptors,
 		handler:      cli.handle,
@@ -56,11 +60,31 @@ func (cli *Client) handle(ctx context.Context, url string, req, resp any, opts *
 		return err
 	}
 	opts.StatusCode = httpResp.StatusCode
+	opts.RespHeader = httpResp.Header
 	err = serializer.Unmarshal(ctx, httpResp, resp, opts)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (cli *Client) handleTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	realTimeout := timeout
+	if realTimeout == 0 {
+		realTimeout = cli.Timeout
+	}
+	if realTimeout == 0 {
+		return ctx, nil
+	}
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return context.WithTimeout(ctx, realTimeout)
+	}
+	existingTimeout := deadline.Sub(time.Now())
+	if existingTimeout < realTimeout {
+		return ctx, nil
+	}
+	return context.WithTimeout(ctx, realTimeout)
 }
 
 func (cli *Client) getHttpClient() *http.Client {
