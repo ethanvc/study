@@ -1,6 +1,7 @@
 package httpcli
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -34,4 +35,8 @@ func TestClient_Do(t *testing.T) {
 	err = Do(ctx, svr.URL, `{"a":"3"}`, &tmpAny, nil)
 	require.NoError(t, err)
 	require.Equal(t, "3", tmpAny["a"])
+
+	err = Do(ctx, svr.URL, bytes.NewBuffer([]byte("hello")), &tmpStr, nil)
+	require.NoError(t, err)
+	require.Equal(t, "hello", tmpStr)
 }
