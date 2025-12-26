@@ -2,12 +2,13 @@ package httpcli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 )
-import "context"
 
 type Serializer interface {
 	Marshal(ctx context.Context, v any, opts *Options) (string, io.Reader, error)
@@ -44,9 +45,9 @@ func (s *AutoSerializer) Unmarshal(ctx context.Context, httpResp *http.Response,
 	case *[]byte:
 		*realV = body
 	default:
-		err := json.Unmarshal(body, resp)
+		err = json.Unmarshal(body, resp)
 		if err != nil {
-			return err
+			return fmt.Errorf("unmarshal error: %s. body is %s", err.Error(), string(body))
 		}
 	}
 	return nil

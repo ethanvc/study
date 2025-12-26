@@ -23,7 +23,15 @@ func TestClient_Do(t *testing.T) {
 	}))
 	defer svr.Close()
 	var tmpStr string
-	err := Do(ctx, svr.URL, "GET", &tmpStr, nil)
+	err := Do(ctx, svr.URL, "TEST", &tmpStr, nil)
 	require.NoError(t, err)
-	require.Equal(t, "GET", tmpStr)
+	require.Equal(t, "TEST", tmpStr)
+	var tmpAny map[string]string
+	err = Do(ctx, svr.URL, `{"a":"3""}`, &tmpAny, nil)
+	require.Equal(t, `unmarshal error: invalid character '"' after object key:value pair. body is {"a":"3""}`, err.Error())
+
+	tmpAny = nil
+	err = Do(ctx, svr.URL, `{"a":"3"}`, &tmpAny, nil)
+	require.NoError(t, err)
+	require.Equal(t, "3", tmpAny["a"])
 }
