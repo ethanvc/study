@@ -46,6 +46,9 @@ func (s *AutoSerializer) Unmarshal(ctx context.Context, httpResp *http.Response,
 		return err
 	}
 	opts.RespBody = body
+	if resp == nil {
+		return nil
+	}
 	switch realV := resp.(type) {
 	case *string:
 		*realV = string(body)
