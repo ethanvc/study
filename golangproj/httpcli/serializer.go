@@ -24,6 +24,8 @@ func (s *AutoSerializer) Marshal(ctx context.Context, v any, opts *Options) (str
 		return "", strings.NewReader(realV), nil
 	case []byte:
 		return "", bytes.NewReader(realV), nil
+	case io.Reader:
+		return "", realV, nil
 	default:
 		buf, err := json.Marshal(v)
 		if err != nil {
@@ -34,6 +36,11 @@ func (s *AutoSerializer) Marshal(ctx context.Context, v any, opts *Options) (str
 }
 
 func (s *AutoSerializer) Unmarshal(ctx context.Context, httpResp *http.Response, resp any, opts *Options) error {
+	if readCloser, ok := resp.(*io.ReadCloser); ok {
+		*readCloser = httpResp.Body
+		return nil
+	}
+	defer httpResp.Body.Close()
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		return err
