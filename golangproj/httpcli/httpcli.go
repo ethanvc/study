@@ -19,9 +19,10 @@ func Do(ctx context.Context, url string, req, resp any, opts *Options) error {
 }
 
 type Client struct {
-	Serializer   Serializer
-	Timeout      time.Duration
-	Interceptors []Interceptor
+	Serializer    Serializer
+	Timeout       time.Duration
+	Interceptors  []Interceptor
+	DefaultClient *http.Client
 }
 
 func (cli *Client) Do(ctx context.Context, url string, req, resp any, opts *Options) error {
@@ -88,6 +89,9 @@ func (cli *Client) handleTimeout(ctx context.Context, timeout time.Duration) (co
 }
 
 func (cli *Client) getHttpClient() *http.Client {
+	if cli.DefaultClient != nil {
+		return cli.DefaultClient
+	}
 	return http.DefaultClient
 }
 
@@ -123,11 +127,21 @@ type Options struct {
 	Header     http.Header
 	Timeout    time.Duration
 	Serializer Serializer
+	// interceptors can use custom opts to extend ability.
+	CustomOpts map[any]any
 
 	// output fields
 	StatusCode int
 	RespBody   []byte
 	RespHeader http.Header
+}
+
+func (opts *Options) AddCustomOpt(key any, val any) *Options {
+	if opts.CustomOpts == nil {
+		opts.CustomOpts = make(map[any]any)
+	}
+	opts.CustomOpts[key] = val
+	return opts
 }
 
 func (opts *Options) GetMethod() string {

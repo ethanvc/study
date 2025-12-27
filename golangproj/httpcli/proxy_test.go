@@ -2,16 +2,16 @@ package httpcli
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptrace"
-	"os"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Proxy(t *testing.T) {
-	// we can use this method to detect proxy usage
-	os.Setenv("http_proxy", "https://www.abc.com")
+func Test_CustomProxy(t *testing.T) {
+	// example to test choice proxy dynamically.
 	ctx := context.Background()
 	target := ""
 	trace := &httptrace.ClientTrace{
@@ -19,9 +19,22 @@ func Test_Proxy(t *testing.T) {
 			target = hostPort
 		},
 	}
+	transport := http.DefaultTransport.(*http.Transport)
+	transport = transport.Clone()
+	cli := &Client{
+		DefaultClient: &http.Client{
+			Transport: transport,
+		},
+	}
+	transport.Proxy = func(req *http.Request) (*url.URL, error) {
+		u, err := url.Parse("http://www.abc.com")
+		if err != nil {
+			return nil, err
+		}
+		return u, nil
+	}
 	ctx = httptrace.WithClientTrace(ctx, trace)
-	err := Do(ctx, "http://www.xx.com", "hello", nil, nil)
+	err := cli.Do(ctx, "http://www.xx.com", "hello", nil, nil)
 	_ = err
-	require.Equal(t, "www.abc.com:443", target)
-
+	require.Equal(t, "www.abc.com:80", target)
 }
