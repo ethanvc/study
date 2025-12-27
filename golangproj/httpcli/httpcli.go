@@ -123,6 +123,8 @@ type Options struct {
 	Header     http.Header
 	Timeout    time.Duration
 	Serializer Serializer
+
+	// output fields
 	StatusCode int
 	RespBody   []byte
 	RespHeader http.Header
