@@ -7,13 +7,36 @@ import (
 	"time"
 )
 
+type Builder struct {
+	Svr *Server
+	Mux *http.ServeMux
+}
+
+func Register[Req any, Resp any](b *Builder, pattern string, h BusinessFunc[Req, Resp]) *Handler {
+	hh := NewHandler(pattern, h)
+	b.Mux.Handle(pattern, b.Svr.NewHttpHandler(hh))
+	return hh
+}
+
 type Server struct {
 	Serializer   Serializer
+	Logger       Logger
 	Timeout      time.Duration
 	Interceptors []Interceptor
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (s *Server) NewHttpHandler(h *Handler) http.Handler {
+	hh := func(w http.ResponseWriter, r *http.Request) {
+		s.serverHttp(h, w, r)
+	}
+	return http.HandlerFunc(hh)
+}
+
+func (s *Server) serverHttp(h *Handler, w http.ResponseWriter, r *http.Request) {
 
 }
 
@@ -35,6 +58,7 @@ func (n Next) Next(ctx context.Context, pattern string, req any, info *CallInfo)
 }
 
 type Handler struct {
+	Pattern      string
 	Serializer   Serializer
 	Timeout      time.Duration
 	Interceptors []Interceptor
@@ -42,8 +66,12 @@ type Handler struct {
 	NewReq       func() any
 }
 
-func NewHandler[Req any, Resp any](h func(ctx context.Context, req *Req) (*Resp, error)) *Handler {
-	hh := &Handler{}
+type BusinessFunc[Req any, Resp any] func(ctx context.Context, req *Req) (*Resp, error)
+
+func NewHandler[Req any, Resp any](pattern string, h BusinessFunc[Req, Resp]) *Handler {
+	hh := &Handler{
+		Pattern: pattern,
+	}
 	hh.realH = func(ctx context.Context, method string, req any, info *CallInfo) (any, error) {
 		realReq, ok := req.(*Req)
 		if !ok {
@@ -71,3 +99,5 @@ type Serializer interface {
 	Marshal(ctx context.Context, v any, info *CallInfo) (string, []byte, error)
 	Unmarshal(ctx context.Context, v any, info *CallInfo) error
 }
+
+type Logger interface{}
