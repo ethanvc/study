@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"time"
 )
 
@@ -12,10 +13,8 @@ type Builder struct {
 	Mux *http.ServeMux
 }
 
-func Register[Req any, Resp any](b *Builder, pattern string, h BusinessFunc[Req, Resp]) *Handler {
-	hh := NewHandler(pattern, h)
-	b.Mux.Handle(pattern, b.Svr.NewHttpHandler(hh))
-	return hh
+func (b *Builder) Register(pattern string, h any) {
+
 }
 
 type Server struct {
@@ -58,7 +57,6 @@ func (n Next) Next(ctx context.Context, pattern string, req any, info *CallInfo)
 }
 
 type Handler struct {
-	Pattern      string
 	Serializer   Serializer
 	Timeout      time.Duration
 	Interceptors []Interceptor
@@ -66,27 +64,53 @@ type Handler struct {
 	NewReq       func() any
 }
 
-type BusinessFunc[Req any, Resp any] func(ctx context.Context, req *Req) (*Resp, error)
-
-func NewHandler[Req any, Resp any](pattern string, h BusinessFunc[Req, Resp]) *Handler {
-	hh := &Handler{
-		Pattern: pattern,
-	}
-	hh.realH = func(ctx context.Context, method string, req any, info *CallInfo) (any, error) {
-		realReq, ok := req.(*Req)
-		if !ok {
-			return nil, fmt.Errorf("FatalErr;InvalidRequestType;t=%T", req)
-		}
-		return h(ctx, realReq)
-	}
-	hh.NewReq = func() any {
-		return new(Req)
-	}
+func NewHandler(f any) *Handler {
+	hh := &Handler{}
 	return hh
 }
 
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) init(f any) {
 
+}
+
+func validateAndParseFunc(f any) (reqType, respType reflect.Type, err error) {
+	funcType := reflect.TypeOf(f)
+	if funcType.Kind() != reflect.Func {
+		return nil, nil, fmt.Errorf("the input must be a function type: %v", funcType.Kind())
+	}
+
+	if funcType.NumIn() != 2 {
+		return nil, nil, fmt.Errorf("the function must have exactly two parameter")
+	}
+
+	firstParam := funcType.In(0)
+	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
+
+	if firstParam != contextType {
+		return nil, nil, fmt.Errorf("the first parameter must be context.Context")
+	}
+
+	secondParam := funcType.In(1)
+	if secondParam.Kind() != reflect.Ptr {
+		return nil, nil, fmt.Errorf("the second parameter must be a pointer")
+	}
+
+	if funcType.NumOut() != 2 {
+		return nil, nil, fmt.Errorf("function must return exact two params")
+	}
+
+	firstReturn := funcType.Out(0)
+	if firstReturn.Kind() != reflect.Ptr {
+		return nil, nil, fmt.Errorf("the first return param must be a pointer")
+	}
+
+	secondReturn := funcType.Out(1)
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if secondReturn != errorType {
+		return nil, nil, fmt.Errorf("the second return param must be error type")
+	}
+
+	return secondParam.Elem(), firstReturn.Elem(), nil
 }
 
 type CallInfo struct {
