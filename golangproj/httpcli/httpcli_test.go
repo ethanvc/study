@@ -23,8 +23,14 @@ func TestClient_Do(t *testing.T) {
 		_, _ = w.Write(body)
 	}))
 	defer svr.Close()
+
+	// req is nil
+	opts := &Options{}
+	err := Do(ctx, svr.URL, nil, nil, opts)
+	require.NoError(t, err)
+	require.Zero(t, len(opts.RespBody))
 	var tmpStr string
-	err := Do(ctx, svr.URL, "TEST", &tmpStr, nil)
+	err = Do(ctx, svr.URL, "TEST", &tmpStr, nil)
 	require.NoError(t, err)
 	require.Equal(t, "TEST", tmpStr)
 	var tmpAny map[string]string

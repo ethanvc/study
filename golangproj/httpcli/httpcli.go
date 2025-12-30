@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var DefaultSerializer = &AutoSerializer{}
+var DefaultSerializer = &JsonSerializer{}
 
 var sDefaultClient = &Client{}
 
@@ -55,8 +55,7 @@ func (cli *Client) Do(ctx context.Context, url string, req, resp any, opts *Opti
 }
 
 func (cli *Client) handle(ctx context.Context, url string, req, resp any, opts *Options) error {
-	serializer := cli.getSerializer(opts)
-	contentType, reqBody, err := serializer.Marshal(ctx, req, opts)
+	contentType, reqBody, err := cli.marshal(ctx, req, opts)
 	if err != nil {
 		return err
 	}
@@ -76,11 +75,53 @@ func (cli *Client) handle(ctx context.Context, url string, req, resp any, opts *
 	}
 	opts.StatusCode = httpResp.StatusCode
 	opts.RespHeader = httpResp.Header
-	err = serializer.Unmarshal(ctx, httpResp, resp, opts)
+	err = cli.unmarshal(ctx, httpResp, resp, opts)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (cli *Client) marshal(ctx context.Context, req any, opts *Options) (string, io.Reader, error) {
+	if req == nil {
+		return "", nil, nil
+	}
+	switch realReq := req.(type) {
+	case string:
+		return "", strings.NewReader(realReq), nil
+	case []byte:
+		return "", bytes.NewReader(realReq), nil
+	case io.Reader:
+		return "", realReq, nil
+	}
+	serializer := cli.getSerializer(opts)
+	return serializer.Marshal(ctx, req, opts)
+}
+
+func (cli *Client) unmarshal(ctx context.Context, httpResp *http.Response, resp any, opts *Options) error {
+	if readCloser, ok := resp.(*io.ReadCloser); ok {
+		*readCloser = httpResp.Body
+		return nil
+	}
+	defer httpResp.Body.Close()
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return err
+	}
+	opts.RespBody = body
+	if resp == nil {
+		return nil
+	}
+	switch realV := resp.(type) {
+	case *string:
+		*realV = string(body)
+		return nil
+	case *[]byte:
+		*realV = body
+		return nil
+	}
+	serializer := cli.getSerializer(opts)
+	return serializer.Unmarshal(ctx, httpResp, body, resp, opts)
 }
 
 func (cli *Client) handleTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
@@ -167,53 +208,24 @@ func (opts *Options) GetMethod() string {
 
 type Serializer interface {
 	Marshal(ctx context.Context, v any, opts *Options) (string, io.Reader, error)
-	Unmarshal(ctx context.Context, httpResp *http.Response, resp any, opts *Options) error
+	Unmarshal(ctx context.Context, httpResp *http.Response, body []byte, resp any, opts *Options) error
 }
 
-type AutoSerializer struct {
+type JsonSerializer struct {
 }
 
-func (s *AutoSerializer) Marshal(ctx context.Context, v any, opts *Options) (string, io.Reader, error) {
-	switch realV := v.(type) {
-	case string:
-		return "", strings.NewReader(realV), nil
-	case []byte:
-		return "", bytes.NewReader(realV), nil
-	case io.Reader:
-		return "", realV, nil
-	default:
-		buf, err := json.Marshal(v)
-		if err != nil {
-			return "", nil, err
-		}
-		return "application/json; charset=utf-8", bytes.NewReader(buf), nil
-	}
-}
-
-func (s *AutoSerializer) Unmarshal(ctx context.Context, httpResp *http.Response, resp any, opts *Options) error {
-	if readCloser, ok := resp.(*io.ReadCloser); ok {
-		*readCloser = httpResp.Body
-		return nil
-	}
-	defer httpResp.Body.Close()
-	body, err := io.ReadAll(httpResp.Body)
+func (s *JsonSerializer) Marshal(ctx context.Context, req any, opts *Options) (string, io.Reader, error) {
+	buf, err := json.Marshal(req)
 	if err != nil {
-		return err
+		return "", nil, err
 	}
-	opts.RespBody = body
-	if resp == nil {
-		return nil
-	}
-	switch realV := resp.(type) {
-	case *string:
-		*realV = string(body)
-	case *[]byte:
-		*realV = body
-	default:
-		err = json.Unmarshal(body, resp)
-		if err != nil {
-			return fmt.Errorf("unmarshal error: %s. body is %s", err.Error(), string(body))
-		}
+	return "application/json; charset=utf-8", bytes.NewReader(buf), nil
+}
+
+func (s *JsonSerializer) Unmarshal(ctx context.Context, httpResp *http.Response, body []byte, resp any, opts *Options) error {
+	err := json.Unmarshal(body, resp)
+	if err != nil {
+		return fmt.Errorf("unmarshal error: %s. body is %s", err.Error(), string(body))
 	}
 	return nil
 }
