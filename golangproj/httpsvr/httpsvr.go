@@ -5,39 +5,42 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"runtime"
 	"time"
+
+	"github.com/ethanvc/study/golangproj/httpsvr/ginradix"
 )
 
 type Server struct {
-	Serializer   Serializer
-	Logger       Logger
-	Timeout      time.Duration
-	Interceptors []Interceptor
+	Serializer      Serializer
+	Logger          Logger
+	Timeout         time.Duration
+	Interceptors    []Interceptor
+	NotFoundHandler *Handler
+	router          Router
 }
 
-func (s *Server) HandleFunc(pattern string, handler *Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		s.ServeHTTP(pattern, handler, w, r)
+func (s *Server) Register(pattern string, f any, methodSlice ...string) {
+	h := NewHandler(f)
+	s.router.Register(pattern, h, methodSlice...)
+}
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h, pattern, params := s.router.Get(r.Method, r.URL.Path)
+	callInfo := &CallInfo{
+		Pattern:   pattern,
+		Request:   r,
+		Writer:    w,
+		Server:    s,
+		PathParms: params,
 	}
+	h.Handle(r.Context(), callInfo)
 }
 
-func (s *Server) ServeHTTP(pattern string, h *Handler, w http.ResponseWriter, r *http.Request) {
-
+func (s *Server) getLogger() Logger {
+	return nil
 }
 
-func (s *Server) NewHttpHandler(h *Handler) http.Handler {
-	hh := func(w http.ResponseWriter, r *http.Request) {
-		s.serverHttp(h, w, r)
-	}
-	return http.HandlerFunc(hh)
-}
-
-func (s *Server) serverHttp(h *Handler, w http.ResponseWriter, r *http.Request) {
-
-}
-
-type Interceptor func(ctx context.Context, pattern string, req any, info *CallInfo, next Next) (any, error)
+type Interceptor func(ctx context.Context, req any, info *CallInfo, next Next) (any, error)
 
 type Next struct {
 	i            int
@@ -45,57 +48,13 @@ type Next struct {
 	handler      *Handler
 }
 
-func (n Next) Next(ctx context.Context, pattern string, req any, info *CallInfo) (any, error) {
+func (n Next) Next(ctx context.Context, req any, info *CallInfo) (any, error) {
 	if n.i >= len(n.interceptors) {
 		return n.handler.call(ctx, req)
 	}
 	newN := n
 	newN.i++
-	return n.interceptors[n.i](ctx, pattern, req, info, newN)
-}
-
-type Handler struct {
-	Serializer   Serializer
-	Timeout      time.Duration
-	Interceptors []Interceptor
-	reqType      reflect.Type
-	f            reflect.Value
-}
-
-func NewHandler(f any) *Handler {
-	hh := &Handler{}
-	hh.init(f)
-	return hh
-}
-
-func (h *Handler) init(f any) {
-	if f == nil {
-		panic("must not zero for handler func")
-	}
-	reqType, err := validateAndParseFunc(f)
-	if err != nil {
-		panic(err)
-	}
-	h.reqType = reqType
-	h.f = reflect.ValueOf(f)
-}
-
-func (h *Handler) call(ctx context.Context, req any) (any, error) {
-	if req == nil {
-		return nil, fmt.Errorf("req must not nil when call handler")
-	}
-	if reflect.TypeOf(req) != h.reqType {
-		return nil, fmt.Errorf("invalid req type, expect %v, got %v", h.reqType, reflect.TypeOf(req))
-	}
-	result := h.f.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(req)})
-	resp := result[0].Interface()
-
-	var err error
-	reflectErr := result[1].Interface()
-	if reflectErr != nil {
-		err = reflectErr.(error)
-	}
-	return resp, err
+	return n.interceptors[n.i](ctx, req, info, newN)
 }
 
 func validateAndParseFunc(f any) (reqType reflect.Type, err error) {
@@ -139,9 +98,11 @@ func validateAndParseFunc(f any) (reqType reflect.Type, err error) {
 }
 
 type CallInfo struct {
-	Request *http.Request
-	Writer  http.ResponseWriter
-	Server  *Server
+	Pattern   string
+	Request   *http.Request
+	Writer    http.ResponseWriter
+	PathParms ginradix.Params
+	Server    *Server
 }
 
 type Serializer interface {
@@ -149,8 +110,7 @@ type Serializer interface {
 	Unmarshal(ctx context.Context, v any, info *CallInfo) error
 }
 
-type Logger interface{}
-
-func nameOfFunction(f any) string {
-	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
+type Logger interface {
+	Start(ctx context.Context, info *CallInfo) context.Context
+	End(ctx context.Context, err error, req, resp any, info *CallInfo)
 }
