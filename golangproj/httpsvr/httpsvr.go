@@ -5,17 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"runtime"
 	"time"
 )
-
-type Builder struct {
-	Svr *Server
-	Mux *http.ServeMux
-}
-
-func (b *Builder) Register(pattern string, h any) {
-
-}
 
 type Server struct {
 	Serializer   Serializer
@@ -24,7 +16,13 @@ type Server struct {
 	Interceptors []Interceptor
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) HandleFunc(pattern string, handler *Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.ServeHTTP(pattern, handler, w, r)
+	}
+}
+
+func (s *Server) ServeHTTP(pattern string, h *Handler, w http.ResponseWriter, r *http.Request) {
 
 }
 
@@ -49,7 +47,7 @@ type Next struct {
 
 func (n Next) Next(ctx context.Context, pattern string, req any, info *CallInfo) (any, error) {
 	if n.i >= len(n.interceptors) {
-		return n.handler.realH(ctx, pattern, req, info)
+		return n.handler.call(ctx, req)
 	}
 	newN := n
 	newN.i++
@@ -60,57 +58,84 @@ type Handler struct {
 	Serializer   Serializer
 	Timeout      time.Duration
 	Interceptors []Interceptor
-	realH        func(ctx context.Context, method string, req any, info *CallInfo) (any, error)
-	NewReq       func() any
+	reqType      reflect.Type
+	f            reflect.Value
 }
 
 func NewHandler(f any) *Handler {
 	hh := &Handler{}
+	hh.init(f)
 	return hh
 }
 
 func (h *Handler) init(f any) {
-
+	if f == nil {
+		panic("must not zero for handler func")
+	}
+	reqType, err := validateAndParseFunc(f)
+	if err != nil {
+		panic(err)
+	}
+	h.reqType = reqType
+	h.f = reflect.ValueOf(f)
 }
 
-func validateAndParseFunc(f any) (reqType, respType reflect.Type, err error) {
+func (h *Handler) call(ctx context.Context, req any) (any, error) {
+	if req == nil {
+		return nil, fmt.Errorf("req must not nil when call handler")
+	}
+	if reflect.TypeOf(req) != h.reqType {
+		return nil, fmt.Errorf("invalid req type, expect %v, got %v", h.reqType, reflect.TypeOf(req))
+	}
+	result := h.f.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(req)})
+	resp := result[0].Interface()
+
+	var err error
+	reflectErr := result[1].Interface()
+	if reflectErr != nil {
+		err = reflectErr.(error)
+	}
+	return resp, err
+}
+
+func validateAndParseFunc(f any) (reqType reflect.Type, err error) {
 	funcType := reflect.TypeOf(f)
 	if funcType.Kind() != reflect.Func {
-		return nil, nil, fmt.Errorf("the input must be a function type: %v", funcType.Kind())
+		return nil, fmt.Errorf("the input must be a function type: %T", f)
 	}
 
 	if funcType.NumIn() != 2 {
-		return nil, nil, fmt.Errorf("the function must have exactly two parameter")
+		return nil, fmt.Errorf("the function must have exactly two parameter")
 	}
 
 	firstParam := funcType.In(0)
 	contextType := reflect.TypeOf((*context.Context)(nil)).Elem()
 
 	if firstParam != contextType {
-		return nil, nil, fmt.Errorf("the first parameter must be context.Context")
+		return nil, fmt.Errorf("the first parameter must be context.Context")
 	}
 
 	secondParam := funcType.In(1)
 	if secondParam.Kind() != reflect.Ptr {
-		return nil, nil, fmt.Errorf("the second parameter must be a pointer")
+		return nil, fmt.Errorf("the second parameter must be a pointer")
 	}
 
 	if funcType.NumOut() != 2 {
-		return nil, nil, fmt.Errorf("function must return exact two params")
+		return nil, fmt.Errorf("function must return exact two params")
 	}
 
 	firstReturn := funcType.Out(0)
 	if firstReturn.Kind() != reflect.Ptr {
-		return nil, nil, fmt.Errorf("the first return param must be a pointer")
+		return nil, fmt.Errorf("the first return param must be a pointer")
 	}
 
 	secondReturn := funcType.Out(1)
 	errorType := reflect.TypeOf((*error)(nil)).Elem()
 	if secondReturn != errorType {
-		return nil, nil, fmt.Errorf("the second return param must be error type")
+		return nil, fmt.Errorf("the second return param must be error type")
 	}
 
-	return secondParam.Elem(), firstReturn.Elem(), nil
+	return secondParam, nil
 }
 
 type CallInfo struct {
@@ -125,3 +150,7 @@ type Serializer interface {
 }
 
 type Logger interface{}
+
+func nameOfFunction(f any) string {
+	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
+}

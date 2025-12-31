@@ -6,10 +6,6 @@ import (
 	"strings"
 )
 
-type Tree[Value any] struct {
-	root *Node[Value]
-}
-
 type Node[Value any] struct {
 	Part      string
 	Pattern   string
@@ -215,6 +211,10 @@ func (n *Node[Value]) consume(p string) int {
 	return 0
 }
 
+type Tree[Value any] struct {
+	root *Node[Value]
+}
+
 func (t *Tree[Value]) MustInsert(pattern string, val Value) {
 	err := t.Insert(pattern, val)
 	if err != nil {
@@ -261,9 +261,9 @@ func (nodes *searchNodes[Value]) push(n *Node[Value], params Params, restPath st
 	*nodes = append(*nodes, searchNode[Value]{n, params, restPath})
 }
 
-func (t *Tree[Value]) Search(p string, params Params) (*Node[Value], Params, error) {
+func (t *Tree[Value]) Search(p string, params Params) (*Node[Value], Params) {
 	if t.root == nil || p == "" {
-		return nil, params, ErrPatternNotFound
+		return nil, params
 	}
 
 	n := t.root
@@ -272,7 +272,7 @@ func (t *Tree[Value]) Search(p string, params Params) (*Node[Value], Params, err
 	for {
 		if n == nil {
 			if backNodes.empty() {
-				return nil, params, ErrPatternNotFound
+				return nil, params
 			}
 			n, params, restPath = backNodes.pop()
 			continue
@@ -291,7 +291,7 @@ func (t *Tree[Value]) Search(p string, params Params) (*Node[Value], Params, err
 		}
 		if consumed == len(restPath) && n.ValValid {
 			// fully matched
-			return n, params, nil
+			return n, params
 		}
 		// match current node, but still need child match
 		restPath = restPath[consumed:]
