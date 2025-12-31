@@ -14,13 +14,11 @@ func Test_BackTrace(t *testing.T) {
 	require.NoError(t, err)
 	err = tree.Insert("/abc/:id", 4)
 	require.NoError(t, err)
-	n, params, err := tree.Search("/abc/bcd", nil)
-	require.NoError(t, err)
+	n, params := tree.Search("/abc/bcd", nil)
 	require.Equal(t, "/abc/bcd", n.Pattern)
 	require.Equal(t, 0, len(params))
 
-	n, params, err = tree.Search("/abc/3333", nil)
-	require.NoError(t, err)
+	n, params = tree.Search("/abc/3333", nil)
 	require.Equal(t, "/abc/:id", n.Pattern)
 	require.Equal(t, 1, len(params))
 	require.Equal(t, "id", params[0].Key)
@@ -33,13 +31,11 @@ func Test_BackTrace2(t *testing.T) {
 	require.NoError(t, err)
 	err = tree.Insert("/abc/bcd", 4)
 	require.NoError(t, err)
-	n, params, err := tree.Search("/abc/bcd", nil)
-	require.NoError(t, err)
+	n, params := tree.Search("/abc/bcd", nil)
 	require.Equal(t, "/abc/bcd", n.Pattern)
 	require.Equal(t, 0, len(params))
 
-	n, params, err = tree.Search("/abc/3333", nil)
-	require.NoError(t, err)
+	n, params = tree.Search("/abc/3333", nil)
 	require.Equal(t, "/abc/:id", n.Pattern)
 	require.Equal(t, 1, len(params))
 	require.Equal(t, "id", params[0].Key)
@@ -84,15 +80,15 @@ func TestTree_Search_EmptyPath(t *testing.T) {
 	err := tree.Insert("/hello", 1)
 	require.NoError(t, err)
 
-	_, _, err = tree.Search("", nil)
-	require.Error(t, err, "Should reject empty path")
+	node, _ := tree.Search("", nil)
+	require.Nil(t, node, "Should return nil for empty path")
 }
 
 func TestTree_Search_NilRoot(t *testing.T) {
 	tree := &Tree[int]{}
 
-	_, _, err := tree.Search("/hello", nil)
-	require.Error(t, err, "Should return error for empty tree")
+	node, _ := tree.Search("/hello", nil)
+	require.Nil(t, node, "Should return nil for empty tree")
 }
 
 // ========== 插入测试 ==========
@@ -178,8 +174,7 @@ func TestTree_Search_Simple(t *testing.T) {
 	err := tree.Insert("/api", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/api", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/api", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/api", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -191,8 +186,7 @@ func TestTree_Search_Root(t *testing.T) {
 	err := tree.Insert("/", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -204,8 +198,8 @@ func TestTree_Search_NotFound(t *testing.T) {
 	err := tree.Insert("/api", 1)
 	require.NoError(t, err)
 
-	_, _, err = tree.Search("/web", nil)
-	require.Error(t, err)
+	node, _ := tree.Search("/web", nil)
+	require.Nil(t, node, "Should return nil for not found")
 }
 
 func TestTree_Search_Wildcard(t *testing.T) {
@@ -213,8 +207,7 @@ func TestTree_Search_Wildcard(t *testing.T) {
 	err := tree.Insert("/users/:name", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/users/john", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/users/john", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/users/:name", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -228,8 +221,7 @@ func TestTree_Search_StarWildcard(t *testing.T) {
 	err := tree.Insert("/*filepath", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/css/main.css", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/css/main.css", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/*filepath", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -243,8 +235,7 @@ func TestTree_Search_MultiWildcard(t *testing.T) {
 	err := tree.Insert("/api/:version/users/:id", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/api/v1/users/123", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/api/v1/users/123", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/api/:version/users/:id", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -261,8 +252,8 @@ func TestTree_Search_NoConsume(t *testing.T) {
 	require.NoError(t, err)
 
 	// 搜索不匹配的路径应该消费0字符，触发回溯
-	_, _, err = tree.Search("/web", nil)
-	require.Error(t, err)
+	node, _ := tree.Search("/web", nil)
+	require.Nil(t, node, "Should return nil for not found")
 }
 
 // ========== 辅助函数测试 ==========
@@ -558,8 +549,7 @@ func TestTree_Search_WithBacktrack(t *testing.T) {
 	err := tree.Insert("/users/:name", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/users/something", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/users/something", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/users/:name", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -575,8 +565,8 @@ func TestTree_Search_PartialPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// 搜索部分路径（should not match）
-	_, _, err = tree.Search("/api", nil)
-	require.Error(t, err)
+	node, _ := tree.Search("/api", nil)
+	require.Nil(t, node, "Should return nil for partial path")
 }
 
 // ========== 增加覆盖率的额外测试 ==========
@@ -630,8 +620,7 @@ func TestTree_Search_ConsumeFullPath(t *testing.T) {
 	err := tree.Insert("/api", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/api", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/api", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/api", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -647,8 +636,7 @@ func TestTree_Search_WildChild_Backtrack(t *testing.T) {
 	err = tree.Insert("/posts/:id", 2)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/users/123", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/users/123", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/users/:id", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -666,8 +654,7 @@ func TestTree_Search_PlainCandidate_BeforeWild(t *testing.T) {
 	err = tree.Insert("/users/admin", 2)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/users/test", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/users/test", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/users/:id", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -684,8 +671,7 @@ func TestTree_Search_NoPlainCandidate_UseWild(t *testing.T) {
 	err := tree.Insert("/users/:id", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/users/123", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/users/123", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/users/:id", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -786,8 +772,8 @@ func TestTree_Search_EmptyBackNodes(t *testing.T) {
 	require.NoError(t, err)
 
 	// 搜索不匹配的路径，backNodes为空
-	_, _, err = tree.Search("/web", nil)
-	require.Error(t, err)
+	node, _ := tree.Search("/web", nil)
+	require.Nil(t, node, "Should return nil for not found")
 }
 
 func TestTree_Search_ConsumePartial(t *testing.T) {
@@ -797,8 +783,7 @@ func TestTree_Search_ConsumePartial(t *testing.T) {
 	err := tree.Insert("/api/users", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/api/users", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/api/users", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/api/users", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -812,8 +797,7 @@ func TestTree_Search_WildWithParams(t *testing.T) {
 	err := tree.Insert("/:a/:b/:c", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/x/y/z", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/x/y/z", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/:a/:b/:c", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -851,8 +835,7 @@ func TestTree_Complex_MultiLevel(t *testing.T) {
 	err = tree.Insert("/a/b/c/d/e", 5)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/a/b/c/d/e", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/a/b/c/d/e", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/a/b/c/d/e", node.Pattern, "Pattern should match")
 	require.Equal(t, 5, node.Val, "Value should match")
@@ -892,8 +875,7 @@ func TestTree_Search_RestPathUpdate(t *testing.T) {
 	err := tree.Insert("/a/b/c", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/a/b/c", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/a/b/c", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/a/b/c", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -924,8 +906,7 @@ func TestTree_Search_MultipleNodes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		node, params, err := tree.Search(tt.path, nil)
-		require.NoError(t, err, "Search path %s should succeed", tt.path)
+		node, params := tree.Search(tt.path, nil)
 		require.NotNil(t, node, "Node for path %s should not be nil", tt.path)
 		require.Equal(t, tt.path, node.Pattern, "Pattern should match for path %s", tt.path)
 		require.Equal(t, tt.val, node.Val, "Value should match for path %s", tt.path)
@@ -958,8 +939,7 @@ func TestTree_Search_WildNode_ParamsAccumulation(t *testing.T) {
 	err = tree.Insert("/:id/posts/:postId", 3)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/user123/posts/post456", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/user123/posts/post456", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/:id/posts/:postId", node.Pattern, "Pattern should match")
 	require.Equal(t, 3, node.Val, "Value should match")
@@ -980,8 +960,7 @@ func TestTree_Search_PlainBeforeWildBacktrack(t *testing.T) {
 	require.NoError(t, err)
 
 	// 搜索admin应该匹配plain
-	node, params, err := tree.Search("/users/admin", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/users/admin", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/users/admin", node.Pattern, "Pattern should match for admin")
 	require.Equal(t, 2, node.Val, "Value should match for admin")
@@ -989,8 +968,7 @@ func TestTree_Search_PlainBeforeWildBacktrack(t *testing.T) {
 	require.Empty(t, params, "Plain route should have no params")
 
 	// 搜索其他应该匹配wild
-	node, params, err = tree.Search("/users/john", nil)
-	require.NoError(t, err)
+	node, params = tree.Search("/users/john", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/users/:name", node.Pattern, "Pattern should match for john")
 	require.Equal(t, 1, node.Val, "Value should match for john")
@@ -1020,8 +998,7 @@ func TestTree_Insert_DeepNesting(t *testing.T) {
 	require.NotNil(t, tree.root)
 
 	// 测试能搜索到较短的路径
-	node, params, err := tree.Search("/l1", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/l1", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/l1", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
@@ -1067,8 +1044,7 @@ func TestTree_Search_ExactPatternLength(t *testing.T) {
 	err := tree.Insert("/exact", 1)
 	require.NoError(t, err)
 
-	node, params, err := tree.Search("/exact", nil)
-	require.NoError(t, err)
+	node, params := tree.Search("/exact", nil)
 	require.NotNil(t, node)
 	require.Equal(t, "/exact", node.Pattern, "Pattern should match")
 	require.Equal(t, 1, node.Val, "Value should match")
