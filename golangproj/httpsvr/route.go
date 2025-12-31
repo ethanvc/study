@@ -7,7 +7,7 @@ type Router struct {
 }
 
 func (r *Router) Get(method string, pattern string) {
-	n, params, err := r.raidx.Search(pattern, nil)
+	// n, params := r.raidx.Search(pattern, nil)
 }
 
 type RouteNode struct {

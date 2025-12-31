@@ -27,5 +27,5 @@ func Test_validateAndParseFunc(t *testing.T) {
 	}
 	reqType, err := validateAndParseFunc(f)
 	require.NoError(t, err)
-	require.Equal(t, "interface {}", reqType.String())
+	require.Equal(t, "*interface {}", reqType.String())
 }
