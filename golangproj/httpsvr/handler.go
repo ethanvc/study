@@ -1,8 +1,12 @@
 package httpsvr
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
 	"reflect"
 	"time"
 )
@@ -39,13 +43,14 @@ func (h *Handler) Handle(ctx context.Context, info *CallInfo) (err error) {
 	defer func() {
 		info.Server.getLogger().End(ctx, err, req, resp, info)
 	}()
-	resp, err = h.unmarshal(ctx, info)
+	req, err = h.unmarshal(ctx, info)
 	if err != nil {
-		h.marshal(ctx, err, nil, info)
+		err = h.marshalAndWrite(ctx, err, nil, info)
 		return err
 	}
 	resp, err = h.handleRest(ctx, req, info)
-	return nil
+	err = h.marshalAndWrite(ctx, err, resp, info)
+	return err
 }
 
 func (h *Handler) handleRest(ctx context.Context, req any, info *CallInfo) (any, error) {
@@ -65,11 +70,92 @@ func (h *Handler) getInterceptors(s *Server) []Interceptor {
 }
 
 func (h *Handler) unmarshal(ctx context.Context, info *CallInfo) (any, error) {
-	return nil, nil
+	v := reflect.New(h.reqType.Elem()).Interface()
+	switch realV := v.(type) {
+	case *io.ReadCloser:
+		*realV = info.Request.Body
+		return v, nil
+	}
+	buf, err := io.ReadAll(info.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	info.RequestBody = buf
+	if len(buf) == 0 {
+		return v, nil
+	}
+	switch realV := v.(type) {
+	case *string:
+		*realV = string(buf)
+		return v, nil
+	case *[]byte:
+		*realV = buf
+		return v, nil
+	}
+	serializer := h.getSerializer(info.Server)
+	err = serializer.Unmarshal(ctx, v, info)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
-func (h *Handler) marshal(ctx context.Context, err error, resp any, info *CallInfo) {
+func (h *Handler) marshalAndWrite(ctx context.Context, err error, resp any, info *CallInfo) error {
+	statusCode, responseBody, newErr := h.marshal(ctx, err, resp, info)
+	if newErr != nil {
+		info.StatusCode = http.StatusInternalServerError
+		return newErr
+	}
+	info.Writer.WriteHeader(statusCode)
+	if responseBody != nil {
+		_, newErr = io.Copy(info.Writer, responseBody)
+		newErr2 := responseBody.Close()
+		if newErr2 != nil {
+			h.getLogger(info.Server).Log(ctx, slog.LevelError, "CloseResponseBodyErr", slog.Any("err", newErr2))
+		}
+		if newErr != nil {
+			h.logWriteErr(ctx, info, newErr)
+		}
+	}
+	return err
+}
 
+func (h *Handler) getLogger(s *Server) Logger {
+	return s.getLogger()
+}
+
+func (h *Handler) logWriteErr(ctx context.Context, info *CallInfo, err error) {}
+
+func (h *Handler) marshal(ctx context.Context, respErr error, resp any, info *CallInfo) (statusCode int, responseBody io.ReadCloser, err error) {
+	s := h.getSerializer(info.Server)
+	switch realV := resp.(type) {
+	case *string:
+		info.ResponseBody = []byte(*realV)
+	case *[]byte:
+		info.ResponseBody = *realV
+	case *io.ReadCloser:
+		responseBody = *realV
+	default:
+		return s.Marshal(ctx, respErr, resp, info)
+	}
+	if respErr != nil {
+		statusCode = s.GetResponseStatusCode(ctx, respErr)
+	}
+	if statusCode == 0 {
+		if respErr != nil {
+			statusCode = http.StatusBadRequest
+		} else {
+			statusCode = http.StatusOK
+		}
+	}
+	return statusCode, io.NopCloser(bytes.NewReader(info.ResponseBody)), respErr
+}
+
+func (h *Handler) getSerializer(s *Server) Serializer {
+	if h.Serializer != nil {
+		return h.Serializer
+	}
+	return s.getSerializer()
 }
 
 func (h *Handler) NameOfFunc() string {

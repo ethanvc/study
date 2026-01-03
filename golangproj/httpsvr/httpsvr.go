@@ -3,6 +3,8 @@ package httpsvr
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"time"
@@ -33,11 +35,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Server:    s,
 		PathParms: params,
 	}
-	h.Handle(r.Context(), callInfo)
+	_ = h.Handle(r.Context(), callInfo)
 }
 
 func (s *Server) getLogger() Logger {
 	return nil
+}
+
+func (s *Server) getSerializer() Serializer {
+	return s.Serializer
 }
 
 type Interceptor func(ctx context.Context, req any, info *CallInfo, next Next) (any, error)
@@ -98,19 +104,26 @@ func validateAndParseFunc(f any) (reqType reflect.Type, err error) {
 }
 
 type CallInfo struct {
-	Pattern   string
-	Request   *http.Request
-	Writer    http.ResponseWriter
-	PathParms ginradix.Params
-	Server    *Server
+	Pattern     string
+	Request     *http.Request
+	Writer      http.ResponseWriter
+	PathParms   ginradix.Params
+	Server      *Server
+	RequestBody []byte
+
+	StatusCode   int
+	RespHeader   http.Header
+	ResponseBody []byte
 }
 
 type Serializer interface {
-	Marshal(ctx context.Context, v any, info *CallInfo) (string, []byte, error)
+	Marshal(ctx context.Context, err error, v any, info *CallInfo) (int, io.ReadCloser, error)
+	GetResponseStatusCode(ctx context.Context, err error) int
 	Unmarshal(ctx context.Context, v any, info *CallInfo) error
 }
 
 type Logger interface {
 	Start(ctx context.Context, info *CallInfo) context.Context
 	End(ctx context.Context, err error, req, resp any, info *CallInfo)
+	Log(ctx context.Context, lvl slog.Level, event string, args ...any)
 }

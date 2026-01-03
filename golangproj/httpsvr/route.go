@@ -6,8 +6,6 @@ import (
 	"github.com/ethanvc/study/golangproj/httpsvr/ginradix"
 )
 
-const MethodAll = "!all"
-
 type Router struct {
 	raidx ginradix.Tree[*RouteNode]
 }
@@ -32,12 +30,10 @@ func (r *Router) Get(method string, pattern string) (*Handler, string, ginradix.
 	if n == nil {
 		return nil, "", nil
 	}
-	if method == MethodAll {
-		return n.Val.nodes[0].Handler, n.Pattern, params
-	}
+
 	for _, nn := range n.Val.nodes {
 		for _, m := range nn.Method {
-			if m == method || m == MethodAll {
+			if m == method {
 				return nn.Handler, n.Pattern, params
 			}
 		}
