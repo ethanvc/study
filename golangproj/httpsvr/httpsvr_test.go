@@ -2,10 +2,30 @@ package httpsvr
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/ethanvc/study/golangproj/httpcli"
 	"github.com/stretchr/testify/require"
 )
+
+func Test_HttpSvr_Basic(t *testing.T) {
+	ctx := context.Background()
+	svr := &Server{}
+	testSvr := httptest.NewServer(svr)
+	defer testSvr.Close()
+	svr.Register("/api/*path", func(ctx context.Context, _ *Empty) (*Empty, error) {
+		return &Empty{}, nil
+	}, http.MethodOptions)
+	opts := &httpcli.Options{
+		Method: http.MethodOptions,
+	}
+	resp, err := httpcli.DoType[Empty](ctx, testSvr.URL+"/api/test", nil, opts)
+	require.NoError(t, err)
+	require.Equal(t, Empty{}, *resp)
+
+}
 
 func Test_HandlerCall(t *testing.T) {
 	h := NewHandler(func(ctx context.Context, req *string) (*string, error) {

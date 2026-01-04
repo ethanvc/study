@@ -179,3 +179,5 @@ func (h *Handler) call(ctx context.Context, req any) (any, error) {
 	}
 	return resp, err
 }
+
+type Empty struct{}
