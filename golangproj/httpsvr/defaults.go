@@ -8,9 +8,9 @@ import (
 	"log/slog"
 )
 
-var DefaultLogger = &LoggerImpl{}
+var DefaultLogger Logger = &LoggerImpl{}
 
-var DefaultSerializer = &JsonSerializer{}
+var DefaultSerializer Serializer = &JsonSerializer{}
 
 type LoggerImpl struct{}
 
@@ -33,15 +33,16 @@ func (l *LoggerImpl) Log(ctx context.Context, lvl slog.Level, event string, args
 type JsonSerializer struct {
 }
 
-func (j *JsonSerializer) Marshal(ctx context.Context, err error, v any, info *CallInfo) (int, io.ReadCloser, error) {
+func (j *JsonSerializer) Marshal(ctx context.Context, err error, v any, info *CallInfo) (io.ReadCloser, error) {
 	buf, newErr := json.Marshal(v)
 	if newErr != nil {
-		return 0, nil, newErr
+		return nil, newErr
 	}
+	info.ResponseBody = buf
 	info.RespHeader.Set("content-type", "application/json")
-	return 0, io.NopCloser(bytes.NewReader(buf)), nil
+	return io.NopCloser(bytes.NewReader(buf)), nil
 }
-func (j *JsonSerializer) GetResponseStatusCode(ctx context.Context, err error) int {
+func (j *JsonSerializer) GetStatusCode(ctx context.Context, err error) int {
 	return 0
 }
 func (j *JsonSerializer) Unmarshal(ctx context.Context, v any, info *CallInfo) error {

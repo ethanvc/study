@@ -101,12 +101,12 @@ func (h *Handler) unmarshal(ctx context.Context, info *CallInfo) (any, error) {
 }
 
 func (h *Handler) marshalAndWrite(ctx context.Context, err error, resp any, info *CallInfo) error {
-	statusCode, responseBody, newErr := h.marshal(ctx, err, resp, info)
+	responseBody, newErr := h.marshal(ctx, err, resp, info)
 	if newErr != nil {
 		info.StatusCode = http.StatusInternalServerError
 		return newErr
 	}
-	info.Writer.WriteHeader(statusCode)
+	info.Writer.WriteHeader(info.StatusCode)
 	if responseBody != nil {
 		_, newErr = io.Copy(info.Writer, responseBody)
 		newErr2 := responseBody.Close()
@@ -147,6 +147,13 @@ func (h *Handler) marshal(ctx context.Context, respErr error, resp any, info *Ca
 	}
 	if info.StatusCode == 0 {
 		info.StatusCode = s.GetStatusCode(ctx, respErr)
+	}
+	if info.StatusCode == 0 {
+		if respErr != nil {
+			info.StatusCode = http.StatusBadRequest
+		} else {
+			info.StatusCode = http.StatusOK
+		}
 	}
 	return responseBody, nil
 }
