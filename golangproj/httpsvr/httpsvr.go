@@ -35,15 +35,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Server:    s,
 		PathParms: params,
 	}
+	callInfo.RespHeader = w.Header()
 	_ = h.Handle(r.Context(), callInfo)
 }
 
 func (s *Server) getLogger() Logger {
-	return nil
+	if s.Logger != nil {
+		return s.Logger
+	}
+	return DefaultLogger
 }
 
 func (s *Server) getSerializer() Serializer {
-	return s.Serializer
+	if s.Serializer != nil {
+		return s.Serializer
+	}
+	return DefaultSerializer
 }
 
 type Interceptor func(ctx context.Context, req any, info *CallInfo, next Next) (any, error)
@@ -117,8 +124,8 @@ type CallInfo struct {
 }
 
 type Serializer interface {
-	Marshal(ctx context.Context, err error, v any, info *CallInfo) (int, io.ReadCloser, error)
-	GetResponseStatusCode(ctx context.Context, err error) int
+	Marshal(ctx context.Context, err error, v any, info *CallInfo) (io.ReadCloser, error)
+	GetStatusCode(ctx context.Context, err error) int
 	Unmarshal(ctx context.Context, v any, info *CallInfo) error
 }
 

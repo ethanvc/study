@@ -126,29 +126,29 @@ func (h *Handler) getLogger(s *Server) Logger {
 
 func (h *Handler) logWriteErr(ctx context.Context, info *CallInfo, err error) {}
 
-func (h *Handler) marshal(ctx context.Context, respErr error, resp any, info *CallInfo) (statusCode int, responseBody io.ReadCloser, err error) {
+func (h *Handler) marshal(ctx context.Context, respErr error, resp any, info *CallInfo) (responseBody io.ReadCloser, err error) {
 	s := h.getSerializer(info.Server)
 	switch realV := resp.(type) {
 	case *string:
 		info.ResponseBody = []byte(*realV)
+		responseBody = io.NopCloser(bytes.NewReader(info.ResponseBody))
 	case *[]byte:
 		info.ResponseBody = *realV
+		responseBody = io.NopCloser(bytes.NewReader(info.ResponseBody))
 	case *io.ReadCloser:
 		responseBody = *realV
 	default:
-		return s.Marshal(ctx, respErr, resp, info)
-	}
-	if respErr != nil {
-		statusCode = s.GetResponseStatusCode(ctx, respErr)
-	}
-	if statusCode == 0 {
-		if respErr != nil {
-			statusCode = http.StatusBadRequest
-		} else {
-			statusCode = http.StatusOK
+		var marshalErr error
+		responseBody, marshalErr = s.Marshal(ctx, respErr, resp, info)
+		if marshalErr != nil {
+			info.StatusCode = http.StatusInternalServerError
+			return nil, marshalErr
 		}
 	}
-	return statusCode, io.NopCloser(bytes.NewReader(info.ResponseBody)), respErr
+	if info.StatusCode == 0 {
+		info.StatusCode = s.GetStatusCode(ctx, respErr)
+	}
+	return responseBody, nil
 }
 
 func (h *Handler) getSerializer(s *Server) Serializer {
