@@ -42,6 +42,10 @@ type Client struct {
 func (cli *Client) Do(ctx context.Context, url string, req, resp any, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
+	} else {
+		opts.StatusCode = 0
+		opts.RespBody = nil
+		opts.RespHeader = nil
 	}
 	ctx, cancel := cli.handleTimeout(ctx, opts.Timeout)
 	if cancel != nil {
