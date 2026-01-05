@@ -16,6 +16,12 @@ func Test_HttpSvr_Basic(t *testing.T) {
 	testSvr := httptest.NewServer(svr)
 	defer testSvr.Close()
 	svr.Register("/api/*path", func(ctx context.Context, _ *Empty) (*Empty, error) {
+		info := GetCallInfo(ctx)
+		info.RespHeader.Set("Access-Control-Allow-Credentials", "true")
+		info.RespHeader.Set("Access-Control-Allow-Headers", "Accept, Content-Type")
+		info.RespHeader.Set("Access-Control-Allow-Methods", "POST, GET")
+		// allow all origin, THIS IS DANGEROUS
+		info.RespHeader.Set("Access-Control-Allow-Origin", "*")
 		return &Empty{}, nil
 	}, http.MethodOptions)
 	opts := &httpcli.Options{

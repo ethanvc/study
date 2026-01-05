@@ -36,7 +36,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		PathParms: params,
 	}
 	callInfo.RespHeader = w.Header()
-	_ = h.Handle(r.Context(), callInfo)
+	ctx := context.WithValue(r.Context(), contextKeyCallInfo{}, callInfo)
+	_ = h.Handle(ctx, callInfo)
 }
 
 func (s *Server) getLogger() Logger {
@@ -121,6 +122,13 @@ type CallInfo struct {
 	StatusCode   int
 	RespHeader   http.Header
 	ResponseBody []byte
+}
+
+type contextKeyCallInfo struct{}
+
+func GetCallInfo(ctx context.Context) *CallInfo {
+	info, _ := ctx.Value(contextKeyCallInfo{}).(*CallInfo)
+	return info
 }
 
 type Serializer interface {

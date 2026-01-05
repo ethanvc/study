@@ -129,6 +129,8 @@ func (h *Handler) logWriteErr(ctx context.Context, info *CallInfo, err error) {}
 func (h *Handler) marshal(ctx context.Context, respErr error, resp any, info *CallInfo) (responseBody io.ReadCloser, err error) {
 	s := h.getSerializer(info.Server)
 	switch realV := resp.(type) {
+	case *Empty:
+		// let responseBody nil
 	case *string:
 		info.ResponseBody = []byte(*realV)
 		responseBody = io.NopCloser(bytes.NewReader(info.ResponseBody))
