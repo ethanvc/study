@@ -30,15 +30,13 @@ func Test_HttpSvr_Basic(t *testing.T) {
 	opts := &httpcli.Options{
 		Method: http.MethodOptions,
 	}
-	resp, err := httpcli.DoType[Empty](ctx, testSvr.URL+"/api/test", nil, opts)
+	err := httpcli.Do(ctx, testSvr.URL+"/api/test", nil, nil, opts)
 	require.NoError(t, err)
-	require.Equal(t, Empty{}, *resp)
 	{
 		resp, err := httpcli.DoType[string](ctx, testSvr.URL+"/api/echo_body", "hello", nil)
 		require.NoError(t, err)
-		require.Equal(t, "hello", resp)
+		require.Equal(t, "hello", *resp)
 	}
-
 }
 
 func Test_HandlerCall(t *testing.T) {

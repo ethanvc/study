@@ -113,7 +113,7 @@ func (cli *Client) unmarshal(ctx context.Context, httpResp *http.Response, resp 
 		return err
 	}
 	opts.RespBody = body
-	if resp == nil {
+	if resp == nil || len(body) == 0 {
 		return nil
 	}
 	switch realV := resp.(type) {
