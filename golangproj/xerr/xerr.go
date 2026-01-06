@@ -58,8 +58,13 @@ func (e *Error) GetDetails() []Payload {
 	return e.Details
 }
 
-func (e *Error) SetMsg(msg string, args ...any) *Error {
-	e.Msg = fmt.Sprintf(msg, args...)
+func (e *Error) SetMsg(msg string) *Error {
+	e.Msg = msg
+	return e
+}
+
+func (e *Error) SetMsgf(format string, args ...any) *Error {
+	e.Msg = fmt.Sprintf(format, args...)
 	return e
 }
 
