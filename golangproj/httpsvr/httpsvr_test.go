@@ -24,12 +24,20 @@ func Test_HttpSvr_Basic(t *testing.T) {
 		info.RespHeader.Set("Access-Control-Allow-Origin", "*")
 		return &Empty{}, nil
 	}, http.MethodOptions)
+	svr.Register("/api/echo_body", func(ctx context.Context, req *string) (*string, error) {
+		return req, nil
+	}, http.MethodPost)
 	opts := &httpcli.Options{
 		Method: http.MethodOptions,
 	}
 	resp, err := httpcli.DoType[Empty](ctx, testSvr.URL+"/api/test", nil, opts)
 	require.NoError(t, err)
 	require.Equal(t, Empty{}, *resp)
+	{
+		resp, err := httpcli.DoType[string](ctx, testSvr.URL+"/api/echo_body", "hello", nil)
+		require.NoError(t, err)
+		require.Equal(t, "hello", resp)
+	}
 
 }
 
