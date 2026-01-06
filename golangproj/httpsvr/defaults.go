@@ -23,7 +23,9 @@ func (l *LoggerImpl) End(ctx context.Context, err error, req, resp any, info *Ca
 	if err != nil {
 		lvl = slog.LevelError
 	}
-	slog.Log(ctx, lvl, "REQ_END")
+	slog.Log(ctx, lvl, "REQ_END", "method", info.Request.Method, "url", info.Request.URL.String(),
+		"err", err, "status_code", info.StatusCode,
+		"req", req, "resp", resp)
 }
 
 func (l *LoggerImpl) Log(ctx context.Context, lvl slog.Level, event string, args ...any) {
