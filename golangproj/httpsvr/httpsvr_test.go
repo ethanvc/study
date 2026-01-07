@@ -31,7 +31,28 @@ func Test_HttpSvr_Basic(t *testing.T) {
 		resp := "/api/get"
 		return &resp, nil
 	}, http.MethodGet)
+	svr.Register("/api/return_cookie", func(ctx context.Context, req *Empty) (*Empty, error) {
+		info := GetCallInfo(ctx)
+		http.SetCookie(info.Writer, &http.Cookie{
+			Name:  "access_token",
+			Value: "xxx",
+		})
+		return &Empty{}, nil
+	}, http.MethodGet)
+
 	opts := &httpcli.Options{}
+	{
+		opts.Method = http.MethodGet
+		err := httpcli.Do(ctx, testSvr.URL+"/api/not_found", nil, nil, opts)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusNotFound, opts.StatusCode)
+	}
+	{
+		opts.Method = http.MethodGet
+		err := httpcli.Do(ctx, testSvr.URL+"/api/return_cookie", nil, nil, opts)
+		require.NoError(t, err)
+		require.Equal(t, "access_token=xxx", opts.RespHeader.Get("Set-Cookie"))
+	}
 	{
 		opts.Method = http.MethodGet
 		resp, err := httpcli.DoType[string](ctx, testSvr.URL+"/api/get", nil, opts)

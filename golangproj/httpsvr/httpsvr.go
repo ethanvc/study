@@ -28,6 +28,9 @@ func (s *Server) Register(pattern string, f any, methodSlice ...string) {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h, pattern, params := s.router.Get(r.Method, r.URL.Path)
+	if h == nil {
+		h, pattern, params = s.getNotFoundHandler()
+	}
 	callInfo := &CallInfo{
 		Pattern:   pattern,
 		Request:   r,
@@ -38,6 +41,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	callInfo.RespHeader = w.Header()
 	ctx := context.WithValue(r.Context(), contextKeyCallInfo{}, callInfo)
 	_ = h.Handle(ctx, callInfo)
+}
+
+func (s *Server) getNotFoundHandler() (*Handler, string, ginradix.Params) {
+	h := DefaultNotFoundHandler
+	if s.NotFoundHandler != nil {
+		h = s.NotFoundHandler
+	}
+	return h, "/UnknownPath", nil
 }
 
 func (s *Server) getLogger() Logger {
