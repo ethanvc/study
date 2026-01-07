@@ -147,6 +147,7 @@ func (h *Handler) marshal(ctx context.Context, respErr error, resp any, info *Ca
 			return nil, marshalErr
 		}
 	}
+
 	if info.StatusCode == 0 {
 		info.StatusCode = s.GetStatusCode(ctx, respErr)
 	}

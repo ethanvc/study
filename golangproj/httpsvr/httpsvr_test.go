@@ -27,11 +27,23 @@ func Test_HttpSvr_Basic(t *testing.T) {
 	svr.Register("/api/echo_body", func(ctx context.Context, req *string) (*string, error) {
 		return req, nil
 	}, http.MethodPost)
-	opts := &httpcli.Options{
-		Method: http.MethodOptions,
+	svr.Register("/api/get", func(ctx context.Context, req *Empty) (*string, error) {
+		resp := "/api/get"
+		return &resp, nil
+	}, http.MethodGet)
+	opts := &httpcli.Options{}
+	{
+		opts.Method = http.MethodGet
+		resp, err := httpcli.DoType[string](ctx, testSvr.URL+"/api/get", nil, opts)
+		require.NoError(t, err)
+		require.Equal(t, "/api/get", *resp)
 	}
-	err := httpcli.Do(ctx, testSvr.URL+"/api/test", nil, nil, opts)
-	require.NoError(t, err)
+	{
+		opts.Method = http.MethodOptions
+		err := httpcli.Do(ctx, testSvr.URL+"/api/test", nil, nil, opts)
+		require.NoError(t, err)
+		require.Equal(t, "true", opts.RespHeader.Get("Access-Control-Allow-Credentials"))
+	}
 	{
 		resp, err := httpcli.DoType[string](ctx, testSvr.URL+"/api/echo_body", "hello", nil)
 		require.NoError(t, err)
