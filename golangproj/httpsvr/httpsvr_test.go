@@ -2,8 +2,10 @@ package httpsvr
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/ethanvc/study/golangproj/httpcli"
@@ -93,4 +95,9 @@ func Test_validateAndParseFunc(t *testing.T) {
 	reqType, err := validateAndParseFunc(f)
 	require.NoError(t, err)
 	require.Equal(t, "*interface {}", reqType.String())
+}
+
+func init() {
+	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
+	slog.SetDefault(slog.New(jsonHandler))
 }

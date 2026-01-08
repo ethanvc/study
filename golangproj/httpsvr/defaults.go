@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 )
 
 var DefaultLogger Logger = &LoggerImpl{}
@@ -60,9 +59,4 @@ func (j *JsonSerializer) GetStatusCode(ctx context.Context, err error) int {
 func (j *JsonSerializer) Unmarshal(ctx context.Context, v any, info *CallInfo) error {
 	err := json.Unmarshal(info.RequestBody, v)
 	return err
-}
-
-func init() {
-	jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
-	slog.SetDefault(slog.New(jsonHandler))
 }
