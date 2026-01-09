@@ -14,7 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
+	"encoding/json/internal/jsonwire"
 )
 
 // ErrDuplicateName indicates that a JSON token could not be

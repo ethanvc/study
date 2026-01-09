@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
-	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 )
 
 // A Decoder reads and decodes JSON values from an input stream.

@@ -11,9 +11,9 @@ import (
 	"errors"
 	"io"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
+	"encoding/json/internal/jsonflags"
+	"encoding/json/internal/jsonopts"
+	"encoding/json/internal/jsonwire"
 )
 
 // NOTE: The logic for decoding is complicated by the fact that reading from
@@ -127,8 +127,8 @@ func NewDecoder(r io.Reader, opts ...Options) *Decoder {
 
 // Reset resets a decoder such that it is reading afresh from r and
 // configured with the provided options. Reset must not be called on an
-// a Decoder passed to the [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.UnmarshalerFrom.UnmarshalJSONFrom] method
-// or the [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.UnmarshalFromFunc] function.
+// a Decoder passed to the [encoding/json/v2.UnmarshalerFrom.UnmarshalJSONFrom] method
+// or the [encoding/json/v2.UnmarshalFromFunc] function.
 func (d *Decoder) Reset(r io.Reader, opts ...Options) {
 	switch {
 	case d == nil:
@@ -151,11 +151,11 @@ func (d *decoderState) reset(b []byte, r io.Reader, opts ...Options) {
 
 // Options returns the options used to construct the encoder and
 // may additionally contain semantic options passed to a
-// [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.UnmarshalDecode] call.
+// [encoding/json/v2.UnmarshalDecode] call.
 //
 // If operating within
-// a [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.UnmarshalerFrom.UnmarshalJSONFrom] method call or
-// a [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.UnmarshalFromFunc] function call,
+// a [encoding/json/v2.UnmarshalerFrom.UnmarshalJSONFrom] method call or
+// a [encoding/json/v2.UnmarshalFromFunc] function call,
 // then the returned options are only valid within the call.
 func (d *Decoder) Options() Options {
 	return &d.s.Struct

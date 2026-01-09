@@ -10,10 +10,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	. "github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	"encoding/json/internal/jsonflags"
+	. "encoding/json/internal/jsonopts"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 )
 
 func makeFlags(f ...jsonflags.Bools) (fs jsonflags.Flags) {

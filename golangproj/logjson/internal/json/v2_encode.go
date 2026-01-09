@@ -13,18 +13,18 @@
 //
 // # Security Considerations
 //
-// See the "Security Considerations" section in [github.com/ethanvc/study/golangproj/logjson/internal/json/v2].
+// See the "Security Considerations" section in [encoding/json/v2].
 //
-// For historical reasons, the default behavior of v1 [github.com/ethanvc/study/golangproj/logjson/internal/json]
+// For historical reasons, the default behavior of v1 [encoding/json]
 // unfortunately operates with less secure defaults.
-// New usages of JSON in Go are encouraged to use [github.com/ethanvc/study/golangproj/logjson/internal/json/v2] instead.
+// New usages of JSON in Go are encouraged to use [encoding/json/v2] instead.
 package json
 
 import (
 	"reflect"
 	"strconv"
 
-	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	jsonv2 "encoding/json/v2"
 )
 
 // Marshal returns the JSON encoding of v.

@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsontest"
+	"encoding/json/internal/jsontest"
 )
 
 type CaseName = jsontest.CaseName

@@ -11,9 +11,9 @@ import (
 	"io"
 	"math/bits"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
+	"encoding/json/internal/jsonflags"
+	"encoding/json/internal/jsonopts"
+	"encoding/json/internal/jsonwire"
 )
 
 // Encoder is a streaming encoder from raw JSON tokens and values.
@@ -96,8 +96,8 @@ func NewEncoder(w io.Writer, opts ...Options) *Encoder {
 
 // Reset resets an encoder such that it is writing afresh to w and
 // configured with the provided options. Reset must not be called on
-// a Encoder passed to the [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.MarshalerTo.MarshalJSONTo] method
-// or the [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.MarshalToFunc] function.
+// a Encoder passed to the [encoding/json/v2.MarshalerTo.MarshalJSONTo] method
+// or the [encoding/json/v2.MarshalToFunc] function.
 func (e *Encoder) Reset(w io.Writer, opts ...Options) {
 	switch {
 	case e == nil:
@@ -135,11 +135,11 @@ func (e *encoderState) reset(b []byte, w io.Writer, opts ...Options) {
 
 // Options returns the options used to construct the decoder and
 // may additionally contain semantic options passed to a
-// [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.MarshalEncode] call.
+// [encoding/json/v2.MarshalEncode] call.
 //
 // If operating within
-// a [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.MarshalerTo.MarshalJSONTo] method call or
-// a [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.MarshalToFunc] function call,
+// a [encoding/json/v2.MarshalerTo.MarshalJSONTo] method call or
+// a [encoding/json/v2.MarshalToFunc] function call,
 // then the returned options are only valid within the call.
 func (e *Encoder) Options() Options {
 	return &e.s.Struct

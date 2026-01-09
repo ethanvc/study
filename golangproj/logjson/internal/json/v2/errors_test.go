@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	"encoding/json/internal/jsonwire"
+	"encoding/json/jsontext"
 )
 
 func TestSemanticError(t *testing.T) {

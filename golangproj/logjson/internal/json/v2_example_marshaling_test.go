@@ -11,7 +11,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json"
+	"encoding/json"
 )
 
 type Animal int

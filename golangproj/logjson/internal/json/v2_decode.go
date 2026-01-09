@@ -15,9 +15,9 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
-	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	"encoding/json/internal/jsonwire"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 )
 
 // Unmarshal parses the JSON-encoded data and stores the result

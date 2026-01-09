@@ -8,7 +8,7 @@
 // These flags are shared across both "json", "jsontext", and "jsonopts".
 package jsonflags
 
-import "github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
+import "encoding/json/internal"
 
 // Bools represents zero or more boolean flags, all set to true or false.
 // The least-significant bit is the boolean value of all flags in the set.

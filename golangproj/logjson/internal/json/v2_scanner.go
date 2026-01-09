@@ -11,9 +11,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	"encoding/json/internal"
+	"encoding/json/internal/jsonflags"
+	"encoding/json/jsontext"
 )
 
 // export exposes internal functionality of the "jsontext" package.

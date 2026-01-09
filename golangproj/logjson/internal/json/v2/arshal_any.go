@@ -11,11 +11,11 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	"encoding/json/internal"
+	"encoding/json/internal/jsonflags"
+	"encoding/json/internal/jsonopts"
+	"encoding/json/internal/jsonwire"
+	"encoding/json/jsontext"
 )
 
 // This file contains an optimized marshal and unmarshal implementation

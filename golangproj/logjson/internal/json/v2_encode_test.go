@@ -1411,7 +1411,7 @@ func TestIssue63379(t *testing.T) {
 	}
 }
 
-// Issue #73733: github.com/ethanvc/study/golangproj/logjson/internal/json used a WaitGroup to coordinate access to cache entries.
+// Issue #73733: encoding/json used a WaitGroup to coordinate access to cache entries.
 // Since WaitGroup.Wait is durably blocking, this caused apparent deadlocks when
 // multiple bubbles called json.Marshal at the same time.
 func TestSynctestMarshal(t *testing.T) {

@@ -9,10 +9,10 @@
 // primitive data types such as booleans, strings, and numbers,
 // in addition to structured data types such as objects and arrays.
 //
-// This package (github.com/ethanvc/study/golangproj/logjson/internal/json/v2) is experimental,
+// This package (encoding/json/v2) is experimental,
 // and not subject to the Go 1 compatibility promise.
 // It only exists when building with the GOEXPERIMENT=jsonv2 environment variable set.
-// Most users should use [github.com/ethanvc/study/golangproj/logjson/internal/json].
+// Most users should use [encoding/json].
 //
 // [Marshal] and [Unmarshal] encode and decode Go values
 // to/from JSON text contained within a []byte.
@@ -188,7 +188,7 @@
 // For example, the standard does not define how to interpret duplicate
 // names within an object.
 //
-// The v1 [github.com/ethanvc/study/golangproj/logjson/internal/json] and [github.com/ethanvc/study/golangproj/logjson/internal/json/v2] packages
+// The v1 [encoding/json] and [encoding/json/v2] packages
 // interpret some inputs in different ways. In particular:
 //
 //   - The standard specifies that JSON must be encoded using UTF-8.

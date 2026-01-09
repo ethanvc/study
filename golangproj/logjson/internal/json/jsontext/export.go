@@ -9,7 +9,7 @@ package jsontext
 import (
 	"io"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
+	"encoding/json/internal"
 )
 
 // Internal is for internal use only.

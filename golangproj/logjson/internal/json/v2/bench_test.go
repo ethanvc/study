@@ -19,12 +19,12 @@ import (
 	"testing/iotest"
 	"time"
 
-	jsonv1 "github.com/ethanvc/study/golangproj/logjson/internal/json"
+	jsonv1 "encoding/json"
 
-	jsonv1in2 "github.com/ethanvc/study/golangproj/logjson/internal/json"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsontest"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
-	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	jsonv1in2 "encoding/json"
+	"encoding/json/internal/jsontest"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 )
 
 // benchVersion is the version to benchmark (either "v1", "v1in2", or "v2").

@@ -22,11 +22,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	"encoding/json/internal"
+	"encoding/json/internal/jsonflags"
+	"encoding/json/internal/jsonopts"
+	"encoding/json/internal/jsonwire"
+	"encoding/json/jsontext"
 )
 
 // optimizeCommon specifies whether to use optimizations targeted for certain
@@ -1348,7 +1348,7 @@ func (va addressableValue) indirect(mayAlloc bool) addressableValue {
 
 // isLegacyEmpty reports whether a value is empty according to the v1 definition.
 func isLegacyEmpty(v addressableValue) bool {
-	// Equivalent to github.com/ethanvc/study/golangproj/logjson/internal/json.isEmptyValue@v1.21.0.
+	// Equivalent to encoding/json.isEmptyValue@v1.21.0.
 	switch v.Kind() {
 	case reflect.Bool:
 		return v.Bool() == false
@@ -1371,7 +1371,7 @@ func isLegacyEmpty(v addressableValue) bool {
 // In v1, the `string` option does not apply recursively to nested types within
 // a composite Go type (e.g., an array, slice, struct, map, or interface).
 func canLegacyStringify(t reflect.Type) bool {
-	// Based on github.com/ethanvc/study/golangproj/logjson/internal/json.typeFields#L1126-L1143@v1.23.0
+	// Based on encoding/json.typeFields#L1126-L1143@v1.23.0
 	if t.Name() == "" && t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}

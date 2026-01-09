@@ -2,23 +2,29 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 // Large data benchmark.
 // The JSON data is a summary of agl's changes in the
 // go, webkit, and chromium open source projects.
 // We benchmark converting between the JSON form
 // and in-memory data structures.
 
+//go:build !goexperiment.jsonv2
+
 package json
 
 import (
 	"bytes"
+	"fmt"
+	"internal/testenv"
+	"internal/zstd"
 	"io"
+	"os"
+	"reflect"
+	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
-
-	"encoding/json/internal/jsontest"
 )
 
 type codeResponse struct {
@@ -40,19 +46,23 @@ var codeJSON []byte
 var codeStruct codeResponse
 
 func codeInit() {
-	var data []byte
-	for _, entry := range jsontest.Data {
-		if entry.Name == "GolangSource" {
-			data = entry.Data()
-		}
+	f, err := os.Open("internal/jsontest/testdata/golang_source.json.zst")
+	if err != nil {
+		panic(err)
 	}
+	defer f.Close()
+	gz := zstd.NewReader(f)
+	data, err := io.ReadAll(gz)
+	if err != nil {
+		panic(err)
+	}
+
 	codeJSON = data
 
 	if err := Unmarshal(codeJSON, &codeStruct); err != nil {
 		panic("unmarshal code.json: " + err.Error())
 	}
 
-	var err error
 	if data, err = Marshal(&codeStruct); err != nil {
 		panic("marshal code.json: " + err.Error())
 	}
@@ -448,6 +458,70 @@ func BenchmarkUnmapped(b *testing.B) {
 	})
 }
 
+func BenchmarkTypeFieldsCache(b *testing.B) {
+	b.ReportAllocs()
+	var maxTypes int = 1e6
+	if testenv.Builder() != "" {
+		maxTypes = 1e3 // restrict cache sizes on builders
+	}
+
+	// Dynamically generate many new types.
+	types := make([]reflect.Type, maxTypes)
+	fs := []reflect.StructField{{
+		Type:  reflect.TypeFor[string](),
+		Index: []int{0},
+	}}
+	for i := range types {
+		fs[0].Name = fmt.Sprintf("TypeFieldsCache%d", i)
+		types[i] = reflect.StructOf(fs)
+	}
+
+	// clearClear clears the cache. Other JSON operations, must not be running.
+	clearCache := func() {
+		fieldCache = sync.Map{}
+	}
+
+	// MissTypes tests the performance of repeated cache misses.
+	// This measures the time to rebuild a cache of size nt.
+	for nt := 1; nt <= maxTypes; nt *= 10 {
+		ts := types[:nt]
+		b.Run(fmt.Sprintf("MissTypes%d", nt), func(b *testing.B) {
+			nc := runtime.GOMAXPROCS(0)
+			for i := 0; i < b.N; i++ {
+				clearCache()
+				var wg sync.WaitGroup
+				for j := 0; j < nc; j++ {
+					wg.Add(1)
+					go func(j int) {
+						for _, t := range ts[(j*len(ts))/nc : ((j+1)*len(ts))/nc] {
+							cachedTypeFields(t)
+						}
+						wg.Done()
+					}(j)
+				}
+				wg.Wait()
+			}
+		})
+	}
+
+	// HitTypes tests the performance of repeated cache hits.
+	// This measures the average time of each cache lookup.
+	for nt := 1; nt <= maxTypes; nt *= 10 {
+		// Pre-warm a cache of size nt.
+		clearCache()
+		for _, t := range types[:nt] {
+			cachedTypeFields(t)
+		}
+		b.Run(fmt.Sprintf("HitTypes%d", nt), func(b *testing.B) {
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					cachedTypeFields(types[0])
+				}
+			})
+		})
+	}
+}
+
 func BenchmarkEncodeMarshaler(b *testing.B) {
 	b.ReportAllocs()
 
@@ -480,4 +554,30 @@ func BenchmarkEncoderEncode(b *testing.B) {
 			}
 		}
 	})
+}
+
+func BenchmarkNumberIsValid(b *testing.B) {
+	s := "-61657.61667E+61673"
+	for i := 0; i < b.N; i++ {
+		isValidNumber(s)
+	}
+}
+
+func BenchmarkNumberIsValidRegexp(b *testing.B) {
+	var jsonNumberRegexp = regexp.MustCompile(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`)
+	s := "-61657.61667E+61673"
+	for i := 0; i < b.N; i++ {
+		jsonNumberRegexp.MatchString(s)
+	}
+}
+
+func BenchmarkUnmarshalNumber(b *testing.B) {
+	b.ReportAllocs()
+	data := []byte(`"-61657.61667E+61673"`)
+	var number Number
+	for i := 0; i < b.N; i++ {
+		if err := Unmarshal(data, &number); err != nil {
+			b.Fatal("Unmarshal:", err)
+		}
+	}
 }

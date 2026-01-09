@@ -19,9 +19,9 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsontest"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
+	"encoding/json/internal/jsonflags"
+	"encoding/json/internal/jsontest"
+	"encoding/json/internal/jsonwire"
 )
 
 // equalTokens reports whether to sequences of tokens formats the same way.

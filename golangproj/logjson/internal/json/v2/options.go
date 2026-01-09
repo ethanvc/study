@@ -9,9 +9,9 @@ package json
 import (
 	"fmt"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
+	"encoding/json/internal"
+	"encoding/json/internal/jsonflags"
+	"encoding/json/internal/jsonopts"
 )
 
 // Options configure [Marshal], [MarshalWrite], [MarshalEncode],
@@ -19,8 +19,8 @@ import (
 // Each function takes in a variadic list of options, where properties
 // set in later options override the value of previously set properties.
 //
-// The Options type is identical to [github.com/ethanvc/study/golangproj/logjson/internal/json.Options] and
-// [github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext.Options]. Options from the other packages can
+// The Options type is identical to [encoding/json.Options] and
+// [encoding/json/jsontext.Options]. Options from the other packages can
 // be used interchangeably with functionality in this package.
 //
 // Options represent either a singular option or a set of options.
@@ -97,8 +97,8 @@ func GetOption[T any](opts Options, setter func(T) Options) (T, bool) {
 }
 
 // DefaultOptionsV2 is the full set of all options that define v2 semantics.
-// It is equivalent to all options under [Options], [github.com/ethanvc/study/golangproj/logjson/internal/json.Options],
-// and [github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext.Options] being set to false or the zero value,
+// It is equivalent to all options under [Options], [encoding/json.Options],
+// and [encoding/json/jsontext.Options] being set to false or the zero value,
 // except for the options related to whitespace formatting.
 func DefaultOptionsV2() Options {
 	return &jsonopts.DefaultOptionsV2

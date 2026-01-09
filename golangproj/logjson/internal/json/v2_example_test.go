@@ -14,7 +14,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json"
+	"encoding/json"
 )
 
 func ExampleMarshal() {

@@ -9,9 +9,9 @@ package jsontext
 import (
 	"strings"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
+	"encoding/json/internal/jsonflags"
+	"encoding/json/internal/jsonopts"
+	"encoding/json/internal/jsonwire"
 )
 
 // Options configures [NewEncoder], [Encoder.Reset], [NewDecoder],
@@ -38,8 +38,8 @@ import (
 //
 // Options that do not affect a particular operation are ignored.
 //
-// The Options type is identical to [github.com/ethanvc/study/golangproj/logjson/internal/json.Options] and
-// [github.com/ethanvc/study/golangproj/logjson/internal/json/v2.Options]. Options from the other packages may
+// The Options type is identical to [encoding/json.Options] and
+// [encoding/json/v2.Options]. Options from the other packages may
 // be passed to functionality in this package, but are ignored.
 // Options from this package may be used with the other packages.
 type Options = jsonopts.Options

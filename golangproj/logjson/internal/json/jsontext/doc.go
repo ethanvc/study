@@ -10,10 +10,10 @@
 // primitive data types such as booleans, strings, and numbers,
 // in addition to structured data types such as objects and arrays.
 //
-// This package (github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext) is experimental,
+// This package (encoding/json/jsontext) is experimental,
 // and not subject to the Go 1 compatibility promise.
 // It only exists when building with the GOEXPERIMENT=jsonv2 environment variable set.
-// Most users should use [github.com/ethanvc/study/golangproj/logjson/internal/json].
+// Most users should use [encoding/json].
 //
 // The [Encoder] and [Decoder] types are used to encode or decode
 // a stream of JSON tokens or values.
@@ -59,7 +59,7 @@
 // the terms "marshal" and "unmarshal" are used for semantic functionality
 // that determines the meaning of JSON values as Go values and vice-versa.
 // This package (i.e., [jsontext]) deals with JSON at a syntactic layer,
-// while [github.com/ethanvc/study/golangproj/logjson/internal/json/v2] deals with JSON at a semantic layer.
+// while [encoding/json/v2] deals with JSON at a semantic layer.
 // The goal is to provide a clear distinction between functionality that
 // is purely concerned with encoding versus that of marshaling.
 // For example, one can directly encode a stream of JSON tokens without
@@ -106,7 +106,7 @@
 //
 // # Security Considerations
 //
-// See the "Security Considerations" section in [github.com/ethanvc/study/golangproj/logjson/internal/json/v2].
+// See the "Security Considerations" section in [encoding/json/v2].
 package jsontext
 
 // requireKeyedLiterals can be embedded in a struct to require keyed literals.

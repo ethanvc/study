@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
-	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	"encoding/json/internal"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 )
 
 // Inject functionality into v2 to properly handle v1 types.

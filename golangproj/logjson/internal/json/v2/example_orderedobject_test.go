@@ -11,8 +11,8 @@ import (
 	"log"
 	"reflect"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 )
 
 // OrderedObject is an ordered sequence of name/value members in a JSON object.

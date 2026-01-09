@@ -13,8 +13,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 )
 
 // This example demonstrates the use of the [Encoder] and [Decoder] to
@@ -99,7 +99,7 @@ func Example_stringReplace() {
 // from being able to perform <script> injection.
 //
 // This example shows how to obtain equivalent behavior provided by the
-// v1 [github.com/ethanvc/study/golangproj/logjson/internal/json] package that is no longer directly supported by this package.
+// v1 [encoding/json] package that is no longer directly supported by this package.
 // Newly written code that intermix JSON and HTML should instead be using the
 // [github.com/google/safehtml] module for safety purposes.
 func ExampleEscapeForHTML() {

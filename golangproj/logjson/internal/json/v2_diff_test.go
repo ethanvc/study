@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	jsonv1 "github.com/ethanvc/study/golangproj/logjson/internal/json"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
-	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+	jsonv1 "encoding/json"
+	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 )
 
 // NOTE: This file serves as a list of semantic differences between v1 and v2.
