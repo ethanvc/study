@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package json_test
 
 import (
@@ -11,8 +9,8 @@ import (
 	"log"
 	"reflect"
 
-	"encoding/json/jsontext"
-	"encoding/json/v2"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
 )
 
 // OrderedObject is an ordered sequence of name/value members in a JSON object.

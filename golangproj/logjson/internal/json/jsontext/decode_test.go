@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package jsontext
 
 import (
@@ -19,9 +17,9 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"encoding/json/internal/jsonflags"
-	"encoding/json/internal/jsontest"
-	"encoding/json/internal/jsonwire"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsontest"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
 )
 
 // equalTokens reports whether to sequences of tokens formats the same way.

@@ -2,13 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package jsonopts
 
 import (
-	"encoding/json/internal"
-	"encoding/json/internal/jsonflags"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
 )
 
 // Options is the common options type shared across json packages.

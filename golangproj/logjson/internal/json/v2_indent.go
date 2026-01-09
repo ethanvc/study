@@ -2,15 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package json
 
 import (
 	"bytes"
 	"strings"
 
-	"encoding/json/jsontext"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
 )
 
 // HTMLEscape appends to dst the JSON-encoded src with <, >, &, U+2028 and U+2029

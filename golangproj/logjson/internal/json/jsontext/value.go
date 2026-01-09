@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package jsontext
 
 import (
@@ -13,8 +11,8 @@ import (
 	"slices"
 	"sync"
 
-	"encoding/json/internal/jsonflags"
-	"encoding/json/internal/jsonwire"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
 )
 
 // NOTE: Value is analogous to v1 json.RawMessage.

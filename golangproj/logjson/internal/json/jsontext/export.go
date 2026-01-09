@@ -2,14 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package jsontext
 
 import (
 	"io"
 
-	"encoding/json/internal"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
 )
 
 // Internal is for internal use only.

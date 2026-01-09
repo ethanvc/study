@@ -3,4 +3,6 @@
 2. 字符串替换：
 ```
 "encoding/json->"github.com/ethanvc/study/golangproj/logjson/internal/json
+
+//go: build goexperiment.jsonv2-><blank>
 ```

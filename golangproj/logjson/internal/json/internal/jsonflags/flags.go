@@ -2,13 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 // jsonflags implements all the optional boolean flags.
 // These flags are shared across both "json", "jsontext", and "jsonopts".
 package jsonflags
 
-import "encoding/json/internal"
+import "github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
 
 // Bools represents zero or more boolean flags, all set to true or false.
 // The least-significant bit is the boolean value of all flags in the set.

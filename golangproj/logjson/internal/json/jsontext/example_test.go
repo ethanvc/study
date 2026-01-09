@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package jsontext_test
 
 import (
@@ -13,8 +11,8 @@ import (
 	"log"
 	"strings"
 
-	"encoding/json/jsontext"
-	"encoding/json/v2"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
 )
 
 // This example demonstrates the use of the [Encoder] and [Decoder] to

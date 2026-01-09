@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 // Migrating to v2
 //
 // This package (i.e., [encoding/json]) is now formally known as the v1 package
@@ -177,10 +175,10 @@ package json
 import (
 	"encoding"
 
-	"encoding/json/internal/jsonflags"
-	"encoding/json/internal/jsonopts"
-	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
 )
 
 // Reference encoding, jsonv2, and jsontext packages to assist pkgsite

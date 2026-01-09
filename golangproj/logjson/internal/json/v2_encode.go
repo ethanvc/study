@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 // Package json implements encoding and decoding of JSON as defined in
 // RFC 7159. The mapping between JSON and Go values is described
 // in the documentation for the Marshal and Unmarshal functions.
@@ -24,7 +22,7 @@ import (
 	"reflect"
 	"strconv"
 
-	jsonv2 "encoding/json/v2"
+	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
 )
 
 // Marshal returns the JSON encoding of v.

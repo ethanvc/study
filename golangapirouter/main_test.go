@@ -2,7 +2,7 @@ package golangapirouter
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json"
 	"net/http/httptest"
 	"os"
 	"testing"

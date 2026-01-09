@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package jsontext
 
 import (
@@ -14,9 +12,9 @@ import (
 	"slices"
 	"testing"
 
-	"encoding/json/internal/jsonflags"
-	"encoding/json/internal/jsontest"
-	"encoding/json/internal/jsonwire"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsontest"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
 )
 
 // TestEncoder tests whether we can produce JSON with either tokens or raw values.

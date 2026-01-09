@@ -1,7 +1,7 @@
 package golangjson
 
 import (
-	"encoding/json"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"

@@ -5,7 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json"
 	"io"
 	"net/http"
 	"net/http/httptest"

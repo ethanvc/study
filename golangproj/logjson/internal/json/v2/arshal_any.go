@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package json
 
 import (
@@ -11,11 +9,11 @@ import (
 	"reflect"
 	"strconv"
 
-	"encoding/json/internal"
-	"encoding/json/internal/jsonflags"
-	"encoding/json/internal/jsonopts"
-	"encoding/json/internal/jsonwire"
-	"encoding/json/jsontext"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
 )
 
 // This file contains an optimized marshal and unmarshal implementation

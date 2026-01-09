@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package json
 
 import (
@@ -12,10 +10,10 @@ import (
 	"io"
 	"reflect"
 
-	"encoding/json/internal/jsonflags"
-	"encoding/json/internal/jsonopts"
-	"encoding/json/internal/jsonwire"
-	"encoding/json/jsontext"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonopts"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
 )
 
 // This package supports "inlining" a Go struct field, where the contents

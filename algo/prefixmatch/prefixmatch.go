@@ -1,7 +1,7 @@
 package prefixmatch
 
 import (
-	"encoding/json"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json"
 	"errors"
 	"fmt"
 	"strings"

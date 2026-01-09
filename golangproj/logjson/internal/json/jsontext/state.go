@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package jsontext
 
 import (
@@ -14,7 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"encoding/json/internal/jsonwire"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
 )
 
 // ErrDuplicateName indicates that a JSON token could not be

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 // Package jsontest contains functionality to assist in testing JSON.
 package jsontest
 
@@ -11,7 +9,6 @@ import (
 	"bytes"
 	"embed"
 	"errors"
-	"internal/zstd"
 	"io"
 	"io/fs"
 	"path"
@@ -19,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ethanvc/study/golangproj/logjson/internal/zstd"
 )
 
 // Embed the testdata directory as a fs.FS because this package is imported

@@ -2,16 +2,14 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package json
 
 import (
 	"bytes"
 	"io"
 
-	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
 )
 
 // A Decoder reads and decodes JSON values from an input stream.

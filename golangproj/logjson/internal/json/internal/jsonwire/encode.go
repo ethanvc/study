@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package jsonwire
 
 import (
@@ -13,7 +11,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"encoding/json/internal/jsonflags"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonflags"
 )
 
 // escapeASCII reports whether the ASCII character needs to be escaped.

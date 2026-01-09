@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 // Represents JSON data structure using native Go types: booleans, floats,
 // strings, arrays, and maps.
 
@@ -15,9 +13,9 @@ import (
 	"reflect"
 	"strconv"
 
-	"encoding/json/internal/jsonwire"
-	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsonwire"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
 )
 
 // Unmarshal parses the JSON-encoded data and stores the result

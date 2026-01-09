@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build goexperiment.jsonv2
-
 package json
 
 import (
@@ -12,8 +10,8 @@ import (
 	"io"
 	"testing"
 
-	"encoding/json/internal/jsontest"
-	"encoding/json/jsontext"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/internal/jsontest"
+	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
 )
 
 func TestIntern(t *testing.T) {
