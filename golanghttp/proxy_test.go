@@ -15,6 +15,7 @@ func Test_Proxy(t *testing.T) {
 	verifyNoProxy(t, "192.168.3.0/8", "http://10.56.88.88", true)
 	verifyNoProxy(t, "192.168.3.0/8", "http://192.168.3.1", false)
 	verifyNoProxy(t, "192.168.3.0/16", "http://192.168.4.1", false)
+
 	verifyNoProxy(t, "10.0.0.1", "http://10.0.0.1", false)
 	verifyNoProxy(t, ".xx.com", "http://www.xx.com", false)
 	verifyNoProxy(t, "*", "http://10.56.88.88", false)
