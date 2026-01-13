@@ -9,6 +9,7 @@ import (
 )
 
 func Test_Proxy(t *testing.T) {
+	verifyNoProxy(t, "192.0.0.0/24", "10.56.88.88", true)
 	verifyNoProxy(t, "10.0.0.1", "10.0.0.1", true)
 	verifyNoProxy(t, ".xx.com", "www.xx.com", true)
 	verifyNoProxy(t, "10.0.0.1/24", "10.56.88.88", true)
