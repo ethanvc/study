@@ -8,6 +8,9 @@ func NewLogJson() *LogJson {
 	return &LogJson{}
 }
 
+func (lj *LogJson) AddMarshaler(key string, f MarshalFunc) {
+}
+
 func (lj *LogJson) Marshal(v any, opts ...Options) ([]byte, error) {
 	return json.Marshal(v, opts...)
 }
@@ -19,3 +22,5 @@ func (lj *LogJson) MarshalAsStr(v any, opts ...Options) (string, error) {
 	}
 	return string(buf), nil
 }
+
+type MarshalFunc func(encoder *Encoder, v any) error
