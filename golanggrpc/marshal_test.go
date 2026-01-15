@@ -1,7 +1,7 @@
 package golanggrpc
 
 import (
-	"github.com/ethanvc/study/golangproj/logjson/internal/json"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
