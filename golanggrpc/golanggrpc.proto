@@ -34,3 +34,7 @@ message EchoContent{
 message StructWithData{
   google.protobuf.Value data= 1;
 }
+
+message ProtoJsonMsg{
+  int64 int64_val = 1;
+}

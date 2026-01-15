@@ -1,28 +1,26 @@
-package teststdjson
+package golanggrpc
 
 import (
 	"encoding/json/v2"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func Test_ProtoJson(t *testing.T) {
-	protoVal := wrapperspb.String(`"hello world"`)
-	var value struct {
-		// GoStruct does not implement proto.Message and
-		// should use the default behavior of the "json" package.
-		GoStruct struct {
-			Name string
-			Age  int
-		}
-
-		// ProtoMessage implements proto.Message and
-		// should be handled using protojson.Marshal.
-		ProtoMessage *wrapperspb.StringValue
+	protoVal := &ProtoJsonMsg{
+		Int64Val: math.MaxInt64,
 	}
+	type Value struct {
+		Name string
+		Age  int64
+		// should be handled using protojson.Marshal.
+		ProtoMessage *ProtoJsonMsg
+	}
+	var value Value
+	value.Name = "John Doe"
 	value.ProtoMessage = protoVal
 
 	// Marshal using protojson.Marshal for proto.Message types.
@@ -30,10 +28,12 @@ func Test_ProtoJson(t *testing.T) {
 		// Use protojson.Marshal as a type-specific marshaler.
 		json.WithMarshalers(json.MarshalFunc(protojson.Marshal)))
 	require.NoError(t, err)
+	require.Equal(t, `{"Name":"John Doe","Age":0,"ProtoMessage":{"int64Val":"9223372036854775807"}}`, string(b))
 
-	// Unmarshal using protojson.Unmarshal for proto.Message types.
-	err = json.Unmarshal(b, &value,
+	var newValue Value
+	err = json.Unmarshal(b, &newValue,
 		// Use protojson.Unmarshal as a type-specific unmarshaler.
 		json.WithUnmarshalers(json.UnmarshalFunc(protojson.Unmarshal)))
 	require.NoError(t, err)
+	require.Equal(t, int64(math.MaxInt64), newValue.ProtoMessage.Int64Val)
 }
