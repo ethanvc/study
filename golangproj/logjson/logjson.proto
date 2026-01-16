@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/ethanvc/study/golangproj/logjson";
+
+package logjson;

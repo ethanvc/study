@@ -13,3 +13,6 @@ type Value = jsontext.Value
 type Token = json.Token
 
 var String = jsontext.String
+
+var Multiline = jsontext.Multiline
+var WithIndent = jsontext.WithIndent
