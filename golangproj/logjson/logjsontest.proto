@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+import "logjson.proto";
+
+option go_package = "github.com/ethanvc/study/golangproj/logjson";
+
+package logjson;
+
+message ProtoLogJsonTest{
+  string user_name = 1[(logjson.log_json).rule = "md5"];
+}

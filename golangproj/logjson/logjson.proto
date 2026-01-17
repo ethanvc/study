@@ -1,7 +1,16 @@
 syntax = "proto3";
 
-import "google/protobuf/struct.proto";
+import "google/protobuf/descriptor.proto";
 
 option go_package = "github.com/ethanvc/study/golangproj/logjson";
 
 package logjson;
+
+// 1. 扩展字段选项，编号需要选一个较大的非冲突数字
+extend google.protobuf.FieldOptions {
+  ProtoLogJson log_json = 54312;
+}
+
+message ProtoLogJson{
+  string rule = 1;
+}

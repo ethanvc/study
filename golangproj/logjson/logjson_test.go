@@ -39,6 +39,16 @@ func TestLogJson_Basic(t *testing.T) {
 }`, buf)
 }
 
+func Test_ProtoStruct(t *testing.T) {
+	val := &ProtoLogJsonTest{
+		UserName: "test",
+	}
+	lj := NewLogJson()
+	buf, err := marshal(lj, val)
+	require.NoError(t, err)
+	require.Equal(t, `{}`, buf)
+}
+
 func marshal(lj *LogJson, v any, opts ...Options) (string, error) {
 	opts = append(opts, WithIndent("    "), Multiline(true))
 	buf, err := lj.Marshal(v, opts...)
