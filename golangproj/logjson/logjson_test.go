@@ -8,6 +8,8 @@ import (
 
 func TestLogJson_Basic(t *testing.T) {
 	type Abc struct {
+		// ignore output to log
+		Password2 string `json:"password2" logjson:"ignore"`
 		// secret must mask
 		Password string `json:"password" logjson:"md5"`
 		// some keys are secret
