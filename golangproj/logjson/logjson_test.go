@@ -13,7 +13,7 @@ func TestLogJson_Basic(t *testing.T) {
 		// secret must mask
 		Password string `json:"password" logjson:"md5"`
 		// some keys are secret
-		Values map[string]string `json:"values" logjson:"map,password:md5,sign_key:md5"`
+		Values map[string]string `json:"values" logjson:"password:md5,sign_key:md5"`
 		// too long for log, only need check if right value
 		FaceFeature []byte `json:"face_feature" logjson:"md5"`
 	}

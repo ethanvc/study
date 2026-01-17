@@ -6,3 +6,9 @@
 
 //go: build goexperiment.jsonv2-><blank>
 ```
+
+# tag 串设计
+完整语法：
+key1:val1;key2:val2;val3;
+
+可以看到，支持kv结构和value列表。
