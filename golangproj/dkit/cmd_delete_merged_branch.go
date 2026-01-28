@@ -1,0 +1,68 @@
+package dkit
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/ethanvc/study/golangproj/dkit/dgit"
+	"github.com/spf13/cobra"
+)
+
+func AddDeleteMergedBranchCmd(rootCmd *cobra.Command) {
+	cmd := &cobra.Command{
+		Use: "delete-merged-branch",
+	}
+	dryRunFlag := cmd.Flags().Bool("dry-run", false, "dry run")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return DeleteMergedBranch(&DeleteMergedBranchReq{
+			DryRun: *dryRunFlag,
+		})
+	}
+	rootCmd.AddCommand(cmd)
+}
+
+type DeleteMergedBranchReq struct {
+	DryRun bool
+}
+
+func DeleteMergedBranch(req *DeleteMergedBranchReq) error {
+	ctx := context.Background()
+	if req.DryRun {
+		fmt.Printf("Notice: dry run mode\n")
+	}
+	currentBranch, err := dgit.GetCurrentBranchName(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, targetBranch := range productionBranches {
+		exist, err := dgit.IsRemoteBranchExist(ctx, targetBranch)
+		if err != nil {
+			return err
+		}
+		if !exist {
+			continue
+		}
+		branches, err := dgit.ListMergedBranches(ctx, targetBranch)
+		if err != nil {
+			return err
+		}
+		for _, branch := range branches {
+			if branch == currentBranch {
+				fmt.Println("skip delete current branch")
+				continue
+			}
+			if req.DryRun {
+				fmt.Sprintf("dry run mode, delete branch %s\n", branch)
+			} else {
+				err := dgit.DeleteBranch(ctx, branch, true)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+var productionBranches = []string{"origin/master", "origin/main", "origin/release"}

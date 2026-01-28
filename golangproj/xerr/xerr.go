@@ -69,12 +69,17 @@ func (e *Error) SetMsgf(format string, args ...any) *Error {
 }
 
 func (e *Error) AppendEvent(event string) *Error {
-	const maxAllowedEvent = 10
+	const maxAllowedEvent = 100
 	if len(e.Event) > maxAllowedEvent {
 		return e
 	}
 	e.Event = append(e.Event, event)
 	return e
+}
+
+func (e *Error) AppendKvEvent(k string, v any) *Error {
+	buf := fmt.Sprintf("%s:%v", k, v)
+	return e.AppendEvent(buf)
 }
 
 const delimiter = ';'
