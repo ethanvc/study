@@ -9,6 +9,7 @@ import (
 )
 
 // GOOS=linux GOARCH=amd64 go build -o dkit main.go
+// go build -o ./ github.com/ethanvc/study/golangproj/dkit/cmd/dkit
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "dkit",
