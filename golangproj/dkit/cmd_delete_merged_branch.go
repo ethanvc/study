@@ -8,24 +8,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func AddDeleteMergedBranchCmd(rootCmd *cobra.Command) {
+func AddDeleteMergedBranchesCmd(rootCmd *cobra.Command) {
 	cmd := &cobra.Command{
-		Use: "delete-merged-branch",
+		Use: "delete-merged-branches",
 	}
 	dryRunFlag := cmd.Flags().Bool("dry-run", false, "dry run")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return DeleteMergedBranch(&DeleteMergedBranchReq{
+		return DeleteMergedBranches(&DeleteMergedBranchesReq{
 			DryRun: *dryRunFlag,
 		})
 	}
 	rootCmd.AddCommand(cmd)
 }
 
-type DeleteMergedBranchReq struct {
+type DeleteMergedBranchesReq struct {
 	DryRun bool
 }
 
-func DeleteMergedBranch(req *DeleteMergedBranchReq) error {
+func DeleteMergedBranches(req *DeleteMergedBranchesReq) error {
 	ctx := context.Background()
 	if req.DryRun {
 		fmt.Printf("Notice: dry run mode\n")
