@@ -10,6 +10,7 @@ import (
 
 // GOOS=linux GOARCH=amd64 go build -o dkit main.go
 // GOBIN=$(pwd) go install github.com/ethanvc/study/golangproj/dkit/cmd/dkit@latest
+// GOPROXY=direct GOBIN=$(pwd) go install github.com/ethanvc/study/golangproj/dkit/cmd/dkit@latest
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "dkit",
