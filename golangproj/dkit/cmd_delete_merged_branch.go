@@ -53,7 +53,7 @@ func DeleteMergedBranch(req *DeleteMergedBranchReq) error {
 				continue
 			}
 			if req.DryRun {
-				fmt.Sprintf("dry run mode, delete branch %s\n", branch)
+				fmt.Printf("dry run mode, delete branch %s\n", branch)
 			} else {
 				err := dgit.DeleteBranch(ctx, branch, true)
 				if err != nil {
