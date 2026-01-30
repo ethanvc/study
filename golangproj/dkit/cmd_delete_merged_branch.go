@@ -59,6 +59,7 @@ func DeleteMergedBranches(req *DeleteMergedBranchesReq) error {
 				if err != nil {
 					return err
 				}
+				fmt.Printf("delete branch %s\n", branch)
 			}
 		}
 	}
