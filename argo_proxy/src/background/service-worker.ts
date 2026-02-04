@@ -2,6 +2,11 @@
  * Argo Proxy - Service Worker (MV3)
  * Inlined constants so this entry is bundled as a single file (no shared chunk → no top-level import).
  */
+// Request Logger: 导入并调用以确保不被 tree-shake
+import { getRequestStats } from '../argochrome/request_list';
+// 强制保留模块（避免被 tree-shake）
+void getRequestStats;
+
 const STORAGE_KEYS = { ENABLED: 'enabled', PROXIES: 'proxies', RULES: 'rules' } as const;
 const PROXY_ID_DIRECT = 'direct';
 const RULES_LIMIT = 50;
