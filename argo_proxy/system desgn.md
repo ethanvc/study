@@ -128,7 +128,7 @@ Popup 与 Settings 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步
 **实现要点**
 
 1. **权限**：manifest 中已有 `host_permissions: ["<all_urls>"]` 时，可直接使用 `chrome.webRequest.onBeforeRequest`；无需额外声明 `webRequest` 权限（MV3 下 host 权限即够）。
-2. **监听注册**：在 `background/service-worker.js` 中：
+2. **监听注册**：在 `extension/background/service-worker.js` 中：
    - `chrome.webRequest.onBeforeRequest.addListener(callback, { urls: ['<all_urls>'] }, ['requestBody'])`（无需 requestBody 可省略第三参数）。
    - callback 参数包含 `requestId`、`url`、`method`、`type`、`tabId`、`frameId` 等。
 3. **数据结构**：在内存中维护「按 tab 聚合的请求列表」，例如：
@@ -169,22 +169,29 @@ Popup 与 Settings 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步
 
 ## 9. 文件与目录建议
 
+Chrome 扩展代码与配置均位于 **extension/** 目录下，加载已解压的扩展程序时选择该目录。
+
 ```
 argo_proxy/
-├── manifest.json           # MV3, permissions, options_ui 指向 settings 页, background
-├── popup/
-│   ├── popup.html          # 主菜单：启用/禁用、Host 列表、设置
-│   ├── popup.js            # 逻辑与子菜单切换、与 SW 通信
-│   └── popup.css
-├── settings/
-│   ├── settings.html       # 设置页
-│   ├── settings.js         # 代理与规则表单、storage 读写
-│   └── settings.css
-├── background/
-│   └── service-worker.js   # storage 监听、DNR 更新、messaging
-├── shared/
-│   └── storage-schema.js   # 数据结构常量、默认值（可选）
-└── icons/                  # 扩展图标
+├── extension/              # Chrome 扩展（加载时选此目录）
+│   ├── manifest.json       # MV3, options_ui, background
+│   ├── popup/
+│   │   ├── popup.html
+│   │   ├── popup.js
+│   │   └── popup.css
+│   ├── settings/
+│   │   ├── settings.html
+│   │   ├── settings.js
+│   │   └── settings.css
+│   ├── background/
+│   │   └── service-worker.js
+│   ├── shared/
+│   │   └── storage-schema.js
+│   └── icons/
+├── prototype/              # 静态原型
+├── prd.md
+├── system desgn.md
+└── TASK_PLAN.md
 ```
 
 以上设计可直接作为实现与代码结构依据，并与 [prd.md](./prd.md) 的验收标准对齐。

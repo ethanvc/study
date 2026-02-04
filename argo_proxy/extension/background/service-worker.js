@@ -10,6 +10,10 @@ const RULES_LIMIT = 50;
 /** Placeholder: replace with real proxy gateway base URL. Redirect target will be gatewayBase + '?url=' + encodeURIComponent(originalUrl) + '&proxyId=' + proxyId */
 const GATEWAY_BASE = 'https://argo-proxy-gateway.example.com/fetch';
 
+function logError(scope, err) {
+    console.error('[Argo Proxy]', scope, err);
+}
+
 /**
  * @returns {Promise<{enabled: boolean, proxies: Array, rules: Array}>}
  */
@@ -73,13 +77,18 @@ function buildDnrRulesWithRegex(enabled, rules) {
 }
 
 async function applyDnrRules() {
-    const { enabled, rules } = await getConfig();
-    const dynamicRules = buildDnrRulesWithRegex(enabled, rules);
-    await chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: (await chrome.declarativeNetRequest.getDynamicRules()).map((r) => r.id),
-    });
-    if (dynamicRules.length > 0) {
-        await chrome.declarativeNetRequest.updateDynamicRules({ addRules: dynamicRules });
+    try {
+        const { enabled, rules } = await getConfig();
+        const dynamicRules = buildDnrRulesWithRegex(enabled, rules);
+        const existing = await chrome.declarativeNetRequest.getDynamicRules();
+        await chrome.declarativeNetRequest.updateDynamicRules({
+            removeRuleIds: existing.map((r) => r.id),
+        });
+        if (dynamicRules.length > 0) {
+            await chrome.declarativeNetRequest.updateDynamicRules({ addRules: dynamicRules });
+        }
+    } catch (e) {
+        logError('applyDnrRules', e);
     }
 }
 
@@ -87,17 +96,27 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
     const keySet = new Set(Object.keys(changes));
     if (keySet.has(STORAGE_KEYS.ENABLED) || keySet.has(STORAGE_KEYS.RULES) || keySet.has(STORAGE_KEYS.PROXIES)) {
-        applyDnrRules();
+        applyDnrRules().catch((e) => logError('storage.onChanged -> applyDnrRules', e));
     }
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'getConfig') {
-        getConfig().then(sendResponse);
+        getConfig()
+            .then(sendResponse)
+            .catch((e) => {
+                logError('getConfig', e);
+                sendResponse({ enabled: true, proxies: [], rules: [] });
+            });
         return true;
     }
     if (msg.type === 'setEnabled') {
-        setEnabled(msg.enabled === true).then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
+        setEnabled(msg.enabled === true)
+            .then(() => sendResponse({ ok: true }))
+            .catch((e) => {
+                logError('setEnabled', e);
+                sendResponse({ ok: false, error: String(e) });
+            });
         return true;
     }
     if (msg.type === 'setRuleProxy') {
@@ -107,8 +126,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             if (idx !== -1) {
                 rules = [...rules];
                 rules[idx] = { ...rules[idx], proxyId: msg.proxyId };
-                chrome.storage.local.set({ [STORAGE_KEYS.RULES]: rules }).then(() => sendResponse({ ok: true })).catch((e) => sendResponse({ ok: false, error: String(e) }));
+                chrome.storage.local
+                    .set({ [STORAGE_KEYS.RULES]: rules })
+                    .then(() => sendResponse({ ok: true }))
+                    .catch((e) => {
+                        logError('setRuleProxy (set)', e);
+                        sendResponse({ ok: false, error: String(e) });
+                    });
             } else {
+                logError('setRuleProxy', new Error('rule not found: ' + msg.ruleId));
                 sendResponse({ ok: false, error: 'rule not found' });
             }
         });
@@ -118,18 +144,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-    chrome.storage.local.get([STORAGE_KEYS.ENABLED, STORAGE_KEYS.RULES, STORAGE_KEYS.PROXIES]).then((out) => {
-        if (out[STORAGE_KEYS.ENABLED] === undefined) {
-            chrome.storage.local.set({ [STORAGE_KEYS.ENABLED]: DEFAULT_ENABLED });
-        }
-        if (!Array.isArray(out[STORAGE_KEYS.PROXIES])) {
-            chrome.storage.local.set({ [STORAGE_KEYS.PROXIES]: [] });
-        }
-        if (!Array.isArray(out[STORAGE_KEYS.RULES])) {
-            chrome.storage.local.set({ [STORAGE_KEYS.RULES]: [] });
-        }
-        applyDnrRules();
-    });
+    chrome.storage.local.get([STORAGE_KEYS.ENABLED, STORAGE_KEYS.RULES, STORAGE_KEYS.PROXIES]).then(
+        (out) => {
+            if (out[STORAGE_KEYS.ENABLED] === undefined) {
+                chrome.storage.local.set({ [STORAGE_KEYS.ENABLED]: DEFAULT_ENABLED });
+            }
+            if (!Array.isArray(out[STORAGE_KEYS.PROXIES])) {
+                chrome.storage.local.set({ [STORAGE_KEYS.PROXIES]: [] });
+            }
+            if (!Array.isArray(out[STORAGE_KEYS.RULES])) {
+                chrome.storage.local.set({ [STORAGE_KEYS.RULES]: [] });
+            }
+            applyDnrRules();
+        },
+        (e) => logError('onInstalled getStorage', e)
+    );
 });
 
 applyDnrRules();

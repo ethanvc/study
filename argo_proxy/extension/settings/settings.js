@@ -3,24 +3,40 @@
     const PROXY_ID_DIRECT = (typeof window !== 'undefined' && window.PROXY_ID_DIRECT) || 'direct';
     const RULES_LIMIT = (typeof window !== 'undefined' && window.RULES_LIMIT) || 50;
 
+    function logError(scope, err) {
+        console.error('[Argo Proxy]', scope, err);
+    }
+
     function id() {
         return crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
     }
 
     function getStorage() {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             chrome.storage.local.get([KEYS.PROXIES, KEYS.RULES], (out) => {
-                resolve({
-                    proxies: Array.isArray(out[KEYS.PROXIES]) ? out[KEYS.PROXIES] : [],
-                    rules: Array.isArray(out[KEYS.RULES]) ? out[KEYS.RULES] : [],
-                });
+                if (chrome.runtime.lastError) {
+                    logError('getStorage', chrome.runtime.lastError);
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve({
+                        proxies: Array.isArray(out[KEYS.PROXIES]) ? out[KEYS.PROXIES] : [],
+                        rules: Array.isArray(out[KEYS.RULES]) ? out[KEYS.RULES] : [],
+                    });
+                }
             });
         });
     }
 
     function setStorage(partial) {
-        return new Promise((resolve) => {
-            chrome.storage.local.set(partial, resolve);
+        return new Promise((resolve, reject) => {
+            chrome.storage.local.set(partial, () => {
+                if (chrome.runtime.lastError) {
+                    logError('setStorage', chrome.runtime.lastError);
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve();
+                }
+            });
         });
     }
 
@@ -114,6 +130,7 @@
         const host = proxyHost.value.trim();
         const port = parseInt(proxyPort.value, 10);
         if (!name || !host || !port || port < 1 || port > 65535) {
+            logError('saveProxy', new Error('invalid input: name/host/port required, port 1-65535'));
             return;
         }
         const payload = {
@@ -133,20 +150,24 @@
         } else {
             proxies = [...proxies, { id: id(), ...payload }];
         }
-        setStorage({ [KEYS.PROXIES]: proxies }).then(() => {
-            cancelProxyForm();
-            renderProxies();
-        });
+        setStorage({ [KEYS.PROXIES]: proxies })
+            .then(() => {
+                cancelProxyForm();
+                renderProxies();
+            })
+            .catch((e) => logError('saveProxy (setStorage)', e));
     }
 
     function deleteProxy(proxyId) {
         if (!confirm('确定删除该代理？使用该代理的规则将改为直连。')) return;
         proxies = proxies.filter((p) => p.id !== proxyId);
         rules = rules.map((r) => (r.proxyId === proxyId ? { ...r, proxyId: PROXY_ID_DIRECT } : r));
-        setStorage({ [KEYS.PROXIES]: proxies, [KEYS.RULES]: rules }).then(() => {
-            renderProxies();
-            renderRules();
-        });
+        setStorage({ [KEYS.PROXIES]: proxies, [KEYS.RULES]: rules })
+            .then(() => {
+                renderProxies();
+                renderRules();
+            })
+            .catch((e) => logError('deleteProxy (setStorage)', e));
     }
 
     proxyAdd.addEventListener('click', () => {
@@ -231,8 +252,12 @@
 
     function saveRule() {
         const value = ruleValue.value.trim();
-        if (!value) return;
+        if (!value) {
+            logError('saveRule', new Error('匹配值不能为空'));
+            return;
+        }
         if (rules.length >= RULES_LIMIT && !editingRuleId) {
+            logError('saveRule', new Error('规则数量已达上限 ' + RULES_LIMIT + ' 条'));
             alert('规则数量已达上限 ' + RULES_LIMIT + ' 条');
             return;
         }
@@ -251,15 +276,19 @@
         } else {
             rules = [...rules, { id: id(), ...payload }];
         }
-        setStorage({ [KEYS.RULES]: rules }).then(() => {
-            cancelRuleForm();
-            renderRules();
-        });
+        setStorage({ [KEYS.RULES]: rules })
+            .then(() => {
+                cancelRuleForm();
+                renderRules();
+            })
+            .catch((e) => logError('saveRule (setStorage)', e));
     }
 
     function deleteRule(ruleId) {
         rules = rules.filter((r) => r.id !== ruleId);
-        setStorage({ [KEYS.RULES]: rules }).then(renderRules);
+        setStorage({ [KEYS.RULES]: rules })
+            .then(renderRules)
+            .catch((e) => logError('deleteRule (setStorage)', e));
     }
 
     ruleAdd.addEventListener('click', () => {
@@ -273,10 +302,12 @@
     ruleCancel.addEventListener('click', cancelRuleForm);
     ruleSave.addEventListener('click', saveRule);
 
-    getStorage().then((data) => {
-        proxies = data.proxies;
-        rules = data.rules;
-        renderProxies();
-        renderRules();
-    });
+    getStorage()
+        .then((data) => {
+            proxies = data.proxies;
+            rules = data.rules;
+            renderProxies();
+            renderRules();
+        })
+        .catch((e) => logError('getStorage (init)', e));
 })();

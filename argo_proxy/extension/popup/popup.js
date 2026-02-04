@@ -14,10 +14,15 @@
 
     let config = { enabled: true, proxies: [], rules: [] };
 
+    function logError(scope, err) {
+        console.error('[Argo Proxy]', scope, err);
+    }
+
     function sendMessage(msg) {
         return new Promise((resolve, reject) => {
             chrome.runtime.sendMessage(msg, (response) => {
                 if (chrome.runtime.lastError) {
+                    logError('sendMessage', chrome.runtime.lastError);
                     reject(chrome.runtime.lastError);
                 } else {
                     resolve(response);
@@ -50,7 +55,8 @@
             const u = new URL(url);
             host = u.hostname || '';
             pathname = u.pathname || '/';
-        } catch (_) {
+        } catch (e) {
+            logError('matchCurrentPage URL parse', e);
             return null;
         }
         const sorted = [...rules].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -100,7 +106,8 @@
                 try {
                     const u = new URL(url);
                     hostLabel = u.hostname + (u.pathname !== '/' ? u.pathname : '');
-                } catch (_) {
+                } catch (e) {
+                    logError('renderHostList URL parse', e);
                     hostLabel = url;
                 }
                 const proxyName = matched ? proxyIdToName(matched.proxyId) : '直连';
@@ -143,7 +150,7 @@
                 const proxyId = select.value;
                 sendMessage({ type: 'setRuleProxy', ruleId: rule.id, proxyId })
                     .then(() => loadConfig().then(renderMain))
-                    .catch(console.error);
+                    .catch((e) => logError('setRuleProxy', e));
             });
 
             row.appendChild(document.createElement('span')).className = 'host';
@@ -165,12 +172,12 @@
     }
 
     switchEl.addEventListener('click', function () {
-        setEnabled(!config.enabled).catch(console.error);
+        setEnabled(!config.enabled).catch((e) => logError('setEnabled (switch)', e));
     });
     switchEl.addEventListener('keydown', function (e) {
         if (e.key === ' ' || e.key === 'Enter') {
             e.preventDefault();
-            setEnabled(!config.enabled).catch(console.error);
+            setEnabled(!config.enabled).catch((e) => logError('setEnabled (keyboard)', e));
         }
     });
 
@@ -193,5 +200,5 @@
         chrome.runtime.openOptionsPage();
     });
 
-    loadConfig().then(renderMain).catch(console.error);
+    loadConfig().then(renderMain).catch((e) => logError('loadConfig (init)', e));
 })();
