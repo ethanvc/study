@@ -19,11 +19,7 @@ interface HostListViewProps {
 export default function HostListView({
     currentPage,
     currentPageError,
-    sortedRules,
-    proxies,
     onBack,
-    onSetRuleProxy,
-    onOpenSettings,
 }: HostListViewProps) {
     return (
         <div className="p-3 bg-gray-100 min-w-[340px]">
