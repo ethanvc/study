@@ -19,11 +19,11 @@ Chrome 扩展，按域名/路径将请求路由到不同代理服务器，供测
 │  Popup (popup.html)     │  主菜单：启用/禁用、Host 列表、设置  │
 │  └─ 子菜单：Host → 代理列表                                   │
 ├─────────────────────────────────────────────────────────────┤
-│  Options / Settings     │  代理列表 CRUD、规则 CRUD（匹配条件   │
-│  (options.html)         │  域名/路径 → 选择代理）              │
+│  Settings (settings.html) │  代理列表 CRUD、规则 CRUD（匹配条件  │
+│                          │  域名/路径 → 选择代理）              │
 ├─────────────────────────────────────────────────────────────┤
 │  Service Worker          │  读取配置；生成/更新 DNR 规则；      │
-│  (background)            │  响应 Popup/Options 的读写请求      │
+│  (background)            │  响应 Popup/Settings 的读写请求     │
 ├─────────────────────────────────────────────────────────────┤
 │  chrome.storage.local    │  持久化：enabled、proxies、rules   │
 └─────────────────────────────────────────────────────────────┘
@@ -34,7 +34,7 @@ Chrome 扩展，按域名/路径将请求路由到不同代理服务器，供测
 ```
 
 - **Popup**：仅做展示与总开关、进入 Host 子菜单、打开 Settings，不直接写存储，通过 message 与 Service Worker 通信。
-- **Options**：代理与规则的增删改，写 `chrome.storage.local`（可由 SW 封装或直接写）。
+- **Settings**：代理与规则的增删改，写 `chrome.storage.local`（可由 SW 封装或直接写）。
 - **Service Worker**：总开关与规则变更时，同步到 declarativeNetRequest 或代理配置，使「按域名/路径走不同代理」生效。
 
 ---
@@ -81,11 +81,11 @@ Chrome 扩展，按域名/路径将请求路由到不同代理服务器，供测
 | 模块               | 职责                                                                                                          |
 | ------------------ | ------------------------------------------------------------------------------------------------------------- |
 | **Popup**          | 总开关 UI、Host 列表入口与子菜单（只读展示 host → 代理）、打开 Settings；与 SW 通信读 enabled/rules/proxies。 |
-| **Options**        | 代理列表与规则的表单增删改；读写 storage；可调用 SW 通知「配置已更新」以刷新 DNR。                            |
-| **Service Worker** | 读取/监听 storage；根据 enabled + rules 生成 DNR 动态规则或更新代理配置；响应 popup/options 的 messaging。    |
+| **Settings**       | 代理列表与规则的表单增删改；读写 storage；可调用 SW 通知「配置已更新」以刷新 DNR。                            |
+| **Service Worker** | 读取/监听 storage；根据 enabled + rules 生成 DNR 动态规则或更新代理配置；响应 popup/settings 的 messaging。   |
 | **Storage**        | 使用 `chrome.storage.local` 存 `enabled`、`proxies`、`rules`；敏感字段（如 password）考虑仅内存或加密后存。   |
 
-Popup 与 Options 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步状态。
+Popup 与 Settings 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步状态。
 
 ---
 
@@ -96,7 +96,7 @@ Popup 与 Options 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步�
 1. 用户切换 Switch → Popup 发 message 给 SW（或直接写 storage）。
 2. SW 监听到 `enabled` 变更 → 若为 false 则清除/禁用 DNR 规则（或恢复直连）；若为 true 则根据当前 rules 重新生成 DNR 规则。
 
-**规则变更（Options）**
+**规则变更（Settings）**
 
 1. 用户在 Settings 增删改规则/代理 → 写 `chrome.storage.local`。
 2. SW 监听 `chrome.storage.onChanged` → 重新生成并提交 DNR 动态规则（仅当 `enabled === true`）。
@@ -117,7 +117,7 @@ Popup 与 Options 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步�
 - **storage**：`chrome.storage.local` 持久化配置。
 - **declarativeNetRequest**：动态规则做请求 redirect（需 host 权限或 declarativeNetRequest 权限及匹配的 host）。
 - **scripting / tabs**：若需在 Popup 中获取当前 tab 的 host 做展示，可用 `chrome.tabs.query` 等（可选）。
-- **options_ui**：在 manifest 中声明 `options_page` 或 `options_ui` 指向 Settings 页。
+- **options_ui**：在 manifest 中声明 `options_ui` 指向 settings 页。
 
 敏感权限（如 `<all_urls>`）按最小必要原则申请，并在隐私说明中注明仅用于代理路由、数据不上传。
 
@@ -125,7 +125,7 @@ Popup 与 Options 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步�
 
 ## 8. 非功能与安全
 
-- **安全**：代理凭证仅存本地（storage.local），不随请求发往除代理服务器外的第三方；Options 与 Popup 仅在扩展上下文中运行。
+- **安全**：代理凭证仅存本地（storage.local），不随请求发往除代理服务器外的第三方；Settings 与 Popup 仅在扩展上下文中运行。
 - **兼容**：Manifest V3；Service Worker 无持久化进程，逻辑保持无状态、以 storage 为事实来源。
 - **性能**：规则数量设上限（如 50），避免 DNR 规则过多；Storage 变更后批量更新 DNR，避免频繁调用 API。
 
@@ -135,15 +135,15 @@ Popup 与 Options 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步�
 
 ```
 argo_proxy/
-├── manifest.json           # MV3, permissions, options_ui, background
+├── manifest.json           # MV3, permissions, options_ui 指向 settings 页, background
 ├── popup/
 │   ├── popup.html          # 主菜单：启用/禁用、Host 列表、设置
 │   ├── popup.js            # 逻辑与子菜单切换、与 SW 通信
 │   └── popup.css
-├── options/
-│   ├── options.html        # Settings 页
-│   ├── options.js          # 代理与规则表单、storage 读写
-│   └── options.css
+├── settings/
+│   ├── settings.html       # 设置页
+│   ├── settings.js         # 代理与规则表单、storage 读写
+│   └── settings.css
 ├── background/
 │   └── service-worker.js   # storage 监听、DNR 更新、messaging
 ├── shared/
