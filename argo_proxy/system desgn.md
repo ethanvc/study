@@ -6,7 +6,7 @@
 
 ## 1. 概述
 
-Chrome 扩展，按域名/路径将请求路由到不同代理服务器，供测试/开发做环境切换。核心能力：规则配置（域名或路径前缀 → 代理）、启用/禁用总开关、Popup 与 Settings 界面、配置持久化。
+Chrome 扩展，按域名/路径将请求路由到不同代理服务器，供测试/开发做环境切换。核心能力：拦截请求并根据规则设置代理、规则配置（域名或路径前缀 → 代理）、启用/禁用总开关、Popup 与 Settings 界面、配置持久化。
 
 ---
 
@@ -109,6 +109,42 @@ Popup 与 Settings 不共享 DOM，仅通过 storage 与 messaging 与 SW 同步
 **打开设置**
 
 - Popup 中点击「设置」→ `chrome.runtime.openOptionsPage()`。
+
+---
+
+### 6.5 监听并记录 tab 发出的请求列表（可选）
+
+**现状**：当前实现**未**监听单个请求，仅通过 declarativeNetRequest 声明 redirect 规则，由浏览器内核匹配并重定向，扩展侧无“每个请求”的回调，也无法拿到“某 tab 的请求列表”。
+
+**若需“监听并记录某 tab 发出的所有请求”**，可按以下方式补充实现。
+
+**API 选型**
+
+- **chrome.webRequest**：在 MV3 中仍可做**只读**监听（不阻塞、不修改请求）。在 background 中注册 `onBeforeRequest` 或 `onCompleted`，即可在每次请求时收到回调（含 `tabId`、`url`、`method`、`type` 等），用于汇总成“请求列表”。
+- **chrome.declarativeNetRequest.getMatchedRules**：可查询一段时间内**匹配到的规则**及对应请求信息，适合“哪些请求被重定向了”的统计，而非“某 tab 的全部请求”的实时列表；且需开启 `declarativeNetRequestFeedback` 权限。
+
+**推荐**：用 **webRequest.onBeforeRequest**（或 onCompleted）在 Service Worker 中监听，按 `tabId` 聚合为请求列表。
+
+**实现要点**
+
+1. **权限**：manifest 中已有 `host_permissions: ["<all_urls>"]` 时，可直接使用 `chrome.webRequest.onBeforeRequest`；无需额外声明 `webRequest` 权限（MV3 下 host 权限即够）。
+2. **监听注册**：在 `background/service-worker.js` 中：
+   - `chrome.webRequest.onBeforeRequest.addListener(callback, { urls: ['<all_urls>'] }, ['requestBody'])`（无需 requestBody 可省略第三参数）。
+   - callback 参数包含 `requestId`、`url`、`method`、`type`、`tabId`、`frameId` 等。
+3. **数据结构**：在内存中维护「按 tab 聚合的请求列表」，例如：
+   - `requestLogByTab: Map<tabId, Array<{ url, method, type, timestamp, requestId? }>>`；
+   - 单 tab 列表长度设上限（如 200 条），超出则 FIFO 丢弃；或只保留最近 N 秒。
+4. **生命周期**：在 `chrome.tabs.onRemoved` 中根据 `tabId` 删除对应列表，避免内存泄漏。
+5. **与 Popup 的联动**：若 Popup 需展示“当前 tab 的请求列表”，可通过 messaging 向 SW 请求当前 `tabId` 的列表（SW 用 `chrome.tabs.query({ active: true, currentWindow: true })` 取 tabId，或由 Popup 在发 message 时带上 tabId）；SW 返回该 tab 的请求数组。
+
+**与 DNR 的关系**
+
+- 使用 webRequest 做**只读**监听不会与 declarativeNetRequest 冲突：DNR 负责 redirect，webRequest 只观察，不修改请求。
+- 若需在“请求列表”中标注“该请求被哪条规则重定向”，可在 callback 中根据 `url` 用当前 `rules` 做一次同步匹配计算，或后续再查 `getMatchedRules`（需 `declarativeNetRequestFeedback`）。
+
+**可选权限**
+
+- 若使用 `getMatchedRules` 做匹配反馈，需在 manifest 的 `permissions` 中增加 `declarativeNetRequestFeedback`。
 
 ---
 
