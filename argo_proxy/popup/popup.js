@@ -41,17 +41,82 @@
         btnHostList.classList.toggle('paused', !config.enabled);
     }
 
+    /** Match URL host/path against rules (same logic as background). Returns matched rule or null. */
+    function matchCurrentPage(url, rules) {
+        if (!url || !rules || rules.length === 0) return null;
+        let host = '';
+        let pathname = '/';
+        try {
+            const u = new URL(url);
+            host = u.hostname || '';
+            pathname = u.pathname || '/';
+        } catch (_) {
+            return null;
+        }
+        const sorted = [...rules].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        for (const rule of sorted) {
+            if (rule.matchType === 'pathPrefix') {
+                if (pathname.startsWith(rule.value)) return rule;
+            } else {
+                const domain = (rule.value || '').replace(/^\./, '');
+                if (host === domain || host.endsWith('.' + domain)) return rule;
+            }
+        }
+        return null;
+    }
+
+    function proxyIdToName(proxyId) {
+        if (proxyId === PROXY_ID_DIRECT || !proxyId) return '直连';
+        const p = (config.proxies || []).find((x) => x.id === proxyId);
+        return p ? p.name : proxyId;
+    }
+
+    function renderCurrentPageBlock(hostLabel, proxyName) {
+        const block = document.getElementById('current-page-block');
+        if (!block) return;
+        block.style.display = 'block';
+        block.innerHTML = '<div class="label">当前页面</div><span class="value">' + escapeHtml(hostLabel) + '</span><span class="proxy-name">→ ' + escapeHtml(proxyName) + '</span>';
+    }
+
+    function escapeHtml(s) {
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+
     function renderHostList() {
         const rules = config.rules || [];
         const proxies = config.proxies || [];
+        const currentPageBlock = document.getElementById('current-page-block');
+        if (currentPageBlock) currentPageBlock.style.display = 'none';
         hostListContainer.innerHTML = '';
+
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const tab = tabs && tabs[0];
+            const url = tab && tab.url;
+            if (url && !url.startsWith('chrome://') && !url.startsWith('edge://') && !url.startsWith('about:')) {
+                const matched = matchCurrentPage(url, config.enabled ? rules : []);
+                let hostLabel = '';
+                try {
+                    const u = new URL(url);
+                    hostLabel = u.hostname + (u.pathname !== '/' ? u.pathname : '');
+                } catch (_) {
+                    hostLabel = url;
+                }
+                const proxyName = matched ? proxyIdToName(matched.proxyId) : '直连';
+                renderCurrentPageBlock(hostLabel, proxyName);
+            } else if (currentPageBlock) {
+                currentPageBlock.style.display = 'block';
+                currentPageBlock.innerHTML = '<div class="label">当前页面</div><span class="value">无法获取当前页面</span>';
+            }
+        });
+
         if (rules.length === 0) {
             hostListEmpty.style.display = 'block';
             return;
         }
         hostListEmpty.style.display = 'none';
         const sorted = [...rules].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        const proxyMap = new Map((proxies || []).map((p) => [p.id, p.name]));
 
         sorted.forEach((rule) => {
             const row = document.createElement('div');

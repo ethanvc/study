@@ -32,6 +32,30 @@ body {
   min-width: 340px;
 }
 
+.current-page {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.current-page .label {
+  color: #666;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.current-page .value {
+  font-family: ui-monospace, monospace;
+  color: #333;
+}
+
+.current-page .proxy-name {
+  color: #1976d2;
+  margin-left: 4px;
+}
+
 .menu-item {
   display: flex;
   align-items: center;
