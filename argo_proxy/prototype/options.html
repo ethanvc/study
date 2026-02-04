@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Argo Proxy - 设置</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px 20px 40px;
+            max-width: 560px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px;
+            color: #1a1a1a;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0 0 24px;
+            font-weight: 600;
+        }
+
+        h2 {
+            font-size: 15px;
+            margin: 20px 0 10px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .row:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            min-width: 72px;
+            color: #555;
+            font-size: 13px;
+        }
+
+        input,
+        select {
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        input {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        select {
+            min-width: 100px;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            background: #1976d2;
+            color: #fff;
+        }
+
+        .btn:hover {
+            background: #1565c0;
+        }
+
+        .btn-ghost {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-ghost:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-danger {
+            background: #c62828;
+        }
+
+        .btn-danger:hover {
+            background: #b71c1c;
+        }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: #fafafa;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .item-row .flex {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .item-row .host {
+            font-family: ui-monospace, monospace;
+        }
+
+        .item-row .proxy-name {
+            color: #1976d2;
+        }
+
+        .item-row .actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .empty-hint {
+            color: #888;
+            font-size: 13px;
+            padding: 12px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Argo Proxy 设置</h1>
+
+    <h2>代理列表</h2>
+    <div class="card">
+        <div id="proxy-list">
+            <div class="item-row" data-id="p1">
+                <span class="flex host">订单团队代理</span>
+                <span style="color:#666;">http · proxy-a.local:8080</span>
+                <div class="actions">
+                    <button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12px;">编辑</button>
+                    <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;">删除</button>
+                </div>
+            </div>
+            <div class="item-row" data-id="p2">
+                <span class="flex host">支付团队代理</span>
+                <span style="color:#666;">https · proxy-b.local:8443</span>
+                <div class="actions">
+                    <button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12px;">编辑</button>
+                    <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;">删除</button>
+                </div>
+            </div>
+            <div class="item-row" data-id="p3">
+                <span class="flex host">用户团队代理</span>
+                <span style="color:#666;">socks · 127.0.0.1:1080</span>
+                <div class="actions">
+                    <button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12px;">编辑</button>
+                    <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;">删除</button>
+                </div>
+            </div>
+        </div>
+        <div class="row" style="margin-top:12px;">
+            <button type="button" class="btn">+ 添加代理</button>
+        </div>
+    </div>
+
+    <h2>路由规则</h2>
+    <div class="card">
+        <p class="empty-hint">匹配条件（域名或路径前缀）→ 选择代理，按顺序匹配。</p>
+        <div id="rule-list">
+            <div class="item-row" data-id="r1">
+                <span class="flex host">api.order.example.com</span>
+                <span style="color:#999;">→</span>
+                <span class="proxy-name">订单团队代理</span>
+                <div class="actions">
+                    <button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12px;">编辑</button>
+                    <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;">删除</button>
+                </div>
+            </div>
+            <div class="item-row" data-id="r2">
+                <span class="flex host">api.pay.example.com</span>
+                <span style="color:#999;">→</span>
+                <span class="proxy-name">支付团队代理</span>
+                <div class="actions">
+                    <button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12px;">编辑</button>
+                    <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;">删除</button>
+                </div>
+            </div>
+            <div class="item-row" data-id="r3">
+                <span class="flex host">/api/user/</span>
+                <span style="color:#999;">路径前缀 →</span>
+                <span class="proxy-name">用户团队代理</span>
+                <div class="actions">
+                    <button type="button" class="btn btn-ghost" style="padding:4px 10px;font-size:12px;">编辑</button>
+                    <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;">删除</button>
+                </div>
+            </div>
+        </div>
+        <div class="row" style="margin-top:12px;">
+            <button type="button" class="btn">+ 添加规则</button>
+        </div>
+    </div>
+
+    <p style="color:#888;font-size:12px;margin-top:24px;">原型说明：按钮仅做展示，实际扩展中会持久化到 chrome.storage.local。</p>
+</body>
+
+</html>

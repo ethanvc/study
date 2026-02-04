@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=320, initial-scale=1" />
+    <title>Argo Proxy - Popup</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            width: 320px;
+            min-height: 120px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 13px;
+            color: #1a1a1a;
+            background: #f5f5f5;
+        }
+
+        .view {
+            display: none;
+            padding: 12px 16px;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* 主菜单 */
+        .menu-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            background: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            text-decoration: none;
+            color: inherit;
+            border: none;
+            width: 100%;
+            font-size: 14px;
+            text-align: left;
+        }
+
+        .menu-item:hover {
+            background: #eee;
+        }
+
+        .menu-item:active {
+            background: #e5e5e5;
+        }
+
+        .menu-item.paused .meta {
+            color: #f57c00;
+        }
+
+        .menu-item .label {
+            font-weight: 500;
+        }
+
+        .menu-item .meta {
+            color: #666;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .menu-item .arrow {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 12px 14px;
+            margin-bottom: 8px;
+            background: #fff;
+            border-radius: 8px;
+        }
+
+        .switch-row .text {
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            background: #4caf50;
+            border-radius: 11px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .switch.off {
+            background: #9e9e9e;
+        }
+
+        .switch::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .switch.off::after {
+            transform: translateX(18px);
+        }
+
+        /* 子菜单 */
+        .sub-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 4px 0;
+        }
+
+        .back-btn {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            color: #555;
+        }
+
+        .back-btn:hover {
+            background: #eee;
+        }
+
+        .sub-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .host-list {
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .host-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+
+        .host-item:last-child {
+            border-bottom: none;
+        }
+
+        .host-item .host {
+            color: #333;
+            font-family: ui-monospace, monospace;
+        }
+
+        .host-item .proxy {
+            color: #1976d2;
+            font-size: 12px;
+        }
+
+        .host-item .arrow-s {
+            color: #999;
+            margin: 0 6px;
+            font-size: 10px;
+        }
+
+        .empty-state {
+            padding: 24px 16px;
+            text-align: center;
+            background: #fff;
+            border-radius: 8px;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .empty-state .link {
+            color: #1976d2;
+            cursor: pointer;
+            margin-top: 8px;
+            display: inline-block;
+        }
+
+        .empty-state .link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 主菜单 -->
+    <div id="view-main" class="view active">
+        <div class="switch-row">
+            <span class="text">启用代理路由</span>
+            <div id="switch" class="switch" role="button" aria-checked="true" tabindex="0"></div>
+        </div>
+        <button type="button" id="btn-host-list" class="menu-item" aria-label="Host 列表">
+            <span class="label">Host 列表</span>
+            <span id="host-count" class="meta">3 条</span>
+            <span class="arrow">›</span>
+        </button>
+        <a id="btn-settings" href="options.html" target="_blank" class="menu-item">
+            <span class="label">设置</span>
+            <span class="arrow">›</span>
+        </a>
+    </div>
+
+    <!-- Host 列表子菜单 -->
+    <div id="view-sub" class="view">
+        <div class="sub-header">
+            <button type="button" class="back-btn" id="btn-back" aria-label="返回">‹</button>
+            <span class="sub-title">Host 列表</span>
+        </div>
+        <div id="host-list-container" class="host-list">
+            <div class="host-item"><span class="host">api.order.example.com</span><span class="arrow-s">→</span><span
+                    class="proxy">订单团队代理</span></div>
+            <div class="host-item"><span class="host">api.pay.example.com</span><span class="arrow-s">→</span><span
+                    class="proxy">支付团队代理</span></div>
+            <div class="host-item"><span class="host">/api/user/</span><span class="arrow-s">→</span><span
+                    class="proxy">用户团队代理</span></div>
+        </div>
+        <div id="host-list-empty" class="empty-state" style="display:none;">
+            暂无规则<br />
+            <span class="link" id="link-to-settings">去设置页添加</span>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const viewMain = document.getElementById('view-main');
+            const viewSub = document.getElementById('view-sub');
+            const switchEl = document.getElementById('switch');
+            const btnHostList = document.getElementById('btn-host-list');
+            const hostCount = document.getElementById('host-count');
+            const btnBack = document.getElementById('btn-back');
+            const hostListContainer = document.getElementById('host-list-container');
+            const hostListEmpty = document.getElementById('host-list-empty');
+            const linkToSettings = document.getElementById('link-to-settings');
+
+            let enabled = true;
+
+            function setEnabled(on) {
+                enabled = on;
+                switchEl.classList.toggle('off', !on);
+                switchEl.setAttribute('aria-checked', on ? 'true' : 'false');
+                if (hostCount) hostCount.textContent = on ? '3 条' : '已暂停';
+                btnHostList.classList.toggle('paused', !on);
+            }
+
+            switchEl.addEventListener('click', function () {
+                setEnabled(!enabled);
+            });
+            switchEl.addEventListener('keydown', function (e) {
+                if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    setEnabled(!enabled);
+                }
+            });
+
+            btnHostList.addEventListener('click', function () {
+                if (enabled) {
+                    viewMain.classList.remove('active');
+                    viewSub.classList.add('active');
+                } else {
+                    viewMain.classList.remove('active');
+                    viewSub.classList.add('active');
+                }
+            });
+
+            btnBack.addEventListener('click', function () {
+                viewSub.classList.remove('active');
+                viewMain.classList.add('active');
+            });
+
+            linkToSettings.addEventListener('click', function () {
+                window.open('options.html', '_blank');
+            });
+
+            setEnabled(true);
+        })();
+    </script>
+</body>
+
+</html>
