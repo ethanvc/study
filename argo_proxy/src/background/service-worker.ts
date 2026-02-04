@@ -3,7 +3,7 @@
  * Inlined constants so this entry is bundled as a single file (no shared chunk → no top-level import).
  */
 // Request Logger: 导入并调用以确保不被 tree-shake
-import { getRequestStats } from '../argochrome/request_list';
+import { getRequestStats } from '../lib/request_list';
 // 强制保留模块（避免被 tree-shake）
 void getRequestStats;
 
