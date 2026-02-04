@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Argo Proxy - 设置</title>
+    <link rel="stylesheet" href="settings.css" />
+</head>
+
+<body>
+    <h1>Argo Proxy 设置</h1>
+
+    <h2>代理列表</h2>
+    <div class="card">
+        <div id="proxy-list"></div>
+        <div class="form-card hidden" id="proxy-form-card">
+            <div class="row">
+                <label>名称</label>
+                <input type="text" id="proxy-name" placeholder="代理名称" />
+            </div>
+            <div class="row">
+                <label>类型</label>
+                <select id="proxy-type">
+                    <option value="http">HTTP</option>
+                    <option value="https">HTTPS</option>
+                    <option value="socks">SOCKS</option>
+                </select>
+            </div>
+            <div class="row">
+                <label>主机</label>
+                <input type="text" id="proxy-host" placeholder="host 或 IP" />
+            </div>
+            <div class="row">
+                <label>端口</label>
+                <input type="number" id="proxy-port" placeholder="端口" min="1" max="65535" />
+            </div>
+            <div class="row">
+                <label>用户名</label>
+                <input type="text" id="proxy-username" placeholder="可选" />
+            </div>
+            <div class="row">
+                <label>密码</label>
+                <input type="password" id="proxy-password" placeholder="可选" />
+            </div>
+            <div class="row actions-row">
+                <button type="button" class="btn" id="proxy-save">保存</button>
+                <button type="button" class="btn btn-ghost" id="proxy-cancel">取消</button>
+            </div>
+        </div>
+        <div class="row" style="margin-top:12px;">
+            <button type="button" class="btn" id="proxy-add">+ 添加代理</button>
+        </div>
+    </div>
+
+    <h2>路由规则</h2>
+    <div class="card">
+        <p class="empty-hint">匹配条件（域名或路径前缀）→ 选择代理，按顺序匹配。</p>
+        <div id="rule-list"></div>
+        <div class="form-card" id="rule-form-card" style="display:none;">
+            <div class="row">
+                <label>匹配类型</label>
+                <select id="rule-match-type">
+                    <option value="domain">域名</option>
+                    <option value="pathPrefix">路径前缀</option>
+                </select>
+            </div>
+            <div class="row">
+                <label>匹配值</label>
+                <input type="text" id="rule-value" placeholder="如 api.example.com 或 /api/order" />
+            </div>
+            <div class="row">
+                <label>代理</label>
+                <select id="rule-proxy"></select>
+            </div>
+            <div class="row">
+                <label>顺序</label>
+                <input type="number" id="rule-order" placeholder="0" min="0" />
+            </div>
+            <div class="row actions-row">
+                <button type="button" class="btn" id="rule-save">保存</button>
+                <button type="button" class="btn btn-ghost" id="rule-cancel">取消</button>
+            </div>
+        </div>
+        <div class="row" style="margin-top:12px;">
+            <button type="button" class="btn" id="rule-add">+ 添加规则</button>
+        </div>
+    </div>
+
+    <script src="../shared/storage-schema.js"></script>
+    <script src="settings.js"></script>
+</body>
+
+</html>
