@@ -12,7 +12,8 @@ if (!existsSync(staticDir)) {
     process.exit(0);
 }
 
-const dirs = ['background', 'icons'];
+// background is built from src/background/service-worker.ts; only copy icons
+const dirs = ['icons'];
 for (const d of dirs) {
     const src = join(staticDir, d);
     const dest = join(dist, d);
