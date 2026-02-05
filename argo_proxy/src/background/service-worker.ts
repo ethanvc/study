@@ -3,10 +3,9 @@
  * Inlined constants so this entry is bundled as a single file (no shared chunk → no top-level import).
  */
 // Request Logger: 导入并调用以确保不被 tree-shake
-import { getRequestStats } from '../lib/request_list';
+import { init } from './request_hook';
 // 强制保留模块（避免被 tree-shake）
-void getRequestStats;
-
+init();
 const STORAGE_KEYS = { ENABLED: 'enabled', PROXIES: 'proxies', RULES: 'rules' } as const;
 const PROXY_ID_DIRECT = 'direct';
 const RULES_LIMIT = 50;
