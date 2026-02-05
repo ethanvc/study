@@ -9,12 +9,13 @@ export interface RequestInfo {
   url: string;
   chromeTabId: number;
   startTime: number;
-  status: RequestStatus;
 }
 
 export interface HostInfo {
   host: string;
+  lastAccessTime: number;
   requests: Map<string, RequestInfo>;
+  status: RequestStatus;
 }
 
 const MAX_REQUEST_COUNT = 5;
@@ -39,7 +40,7 @@ export class NetEvaluator {
     }
     let hostInfo = hostMap.get(host);
     if (!hostInfo) {
-      hostInfo = { host, requests: new Map() };
+      hostInfo = { host, lastAccessTime: Date.now(), requests: new Map() , status:RequestStatus.Pending};
       hostMap.set(host, hostInfo);
     }
     if (hostInfo.requests.size > MAX_REQUEST_COUNT) {
@@ -51,7 +52,6 @@ export class NetEvaluator {
       url,
       chromeTabId,
       startTime: Date.now(),
-      status: RequestStatus.Pending,
     };
     hostInfo.requests.set(requestId, requestInfo);
     this.requestIndexMap.set(requestId, requestInfo);
@@ -63,7 +63,19 @@ export class NetEvaluator {
     if (!requestInfo) {
       return;
     }
-    requestInfo.status = status;
+    this.requestIndexMap.delete(requestId);
+    const tabHosts = this.storage.get(requestInfo.chromeTabId);
+    if (!tabHosts) {
+      return;
+    }
+    const hostInfo = tabHosts.get(this.getHostFromUrl(requestInfo.url));
+    if (!hostInfo) {
+      return;
+    }
+    hostInfo.lastAccessTime = Date.now();
+    hostInfo.status = status;
+    hostInfo.requests.delete(requestId);
+    console.log(`finish request, id:${requestId}, url: ${requestInfo.url}, tabId: ${requestInfo.chromeTabId}`);
   }
 
   private getHostFromUrl(url: string): string {
