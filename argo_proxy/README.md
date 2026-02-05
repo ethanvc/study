@@ -7,7 +7,7 @@
 **脚本**
 
 - `npm install`：安装依赖。
-- `npm run build`：构建扩展到 **dist/**（会从 static/ 复制 manifest、background、icons）。
+- `npm run build or npm run build:dev`：构建扩展到 **dist/**（会从 static/ 复制 manifest、background、icons）。
 - `npm run dev`：监听源码变更并持续构建。
 
 **加载扩展**：Chrome → `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序 → 选择 **dist** 目录。

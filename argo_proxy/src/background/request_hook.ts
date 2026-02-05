@@ -1,3 +1,4 @@
+import { NetEvaluator } from "./net_evaluator";
 
 function init() {
     const filter: chrome.webRequest.RequestFilter = { urls: ['<all_urls>'] };
@@ -6,8 +7,10 @@ function init() {
     chrome.webRequest.onErrorOccurred.addListener(onErrorOccurred, filter);
 }
 
+const netEvaluator = new NetEvaluator();
+
 function onBeforeRequest(details: chrome.webRequest.WebRequestBodyDetails): void {
-    console.log(`before request, id:${details.requestId}, url: ${typeof details.url}`);
+    netEvaluator.addRequest(details.tabId, details.url, details.requestId);
 }
 
 function onCompleted(details: chrome.webRequest.WebResponseCacheDetails): void {
