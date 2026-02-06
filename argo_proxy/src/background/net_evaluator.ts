@@ -20,6 +20,8 @@ export interface HostInfo {
 }
 
 const MAX_REQUEST_COUNT = 5;
+const CLEANUP_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+const HOST_EXPIRE_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
  * 按 tab -> host -> requestId 存储请求，用于按 tab/域名维度统计或查询。
@@ -28,6 +30,67 @@ export class NetEvaluator {
     /** chromeTabId -> host -> HostInfo */
     private readonly storage = new Map<number, Map<string, HostInfo>>();
     private readonly requestIndexMap = new Map<string, RequestInfo>();
+    private readonly cleanupTimer: ReturnType<typeof setInterval>;
+
+    constructor() {
+        this.cleanupTimer = setInterval(() => {
+            this.clearExpiredData();
+        }, CLEANUP_INTERVAL_MS);
+    }
+
+    /** 停止定时清理（如需销毁实例时调用）。 */
+    dispose(): void {
+        clearInterval(this.cleanupTimer);
+    }
+
+    /** 清理过期数据：移除不存在的 tab 和超过2分钟未访问的 host。 */
+    async clearExpiredData(): Promise<void> {
+        for (const [tabId, hostMap] of this.storage) {
+            const tabExists = await this.isTabExists(tabId);
+            if (!tabExists) {
+                this.removeTabAndCleanIndex(tabId);
+                console.log(`clearExpiredData: removed closed tab ${tabId}`);
+                continue;
+            }
+
+            const now = Date.now();
+            for (const [host, hostInfo] of hostMap) {
+                if (now - hostInfo.lastAccessTime > HOST_EXPIRE_MS) {
+                    // 清理 requestIndexMap 中该 host 的请求
+                    for (const requestId of hostInfo.requests.keys()) {
+                        this.requestIndexMap.delete(requestId);
+                    }
+                    hostMap.delete(host);
+                    console.log(`clearExpiredData: removed expired host ${host} from tab ${tabId}`);
+                }
+            }
+            // 如果 tab 下已无 host，移除整个 tab
+            if (hostMap.size === 0) {
+                this.storage.delete(tabId);
+            }
+        }
+    }
+
+    private async isTabExists(tabId: number): Promise<boolean> {
+        try {
+            await chrome.tabs.get(tabId);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    private removeTabAndCleanIndex(tabId: number): void {
+        const hostMap = this.storage.get(tabId);
+        if (hostMap) {
+            for (const hostInfo of hostMap.values()) {
+                for (const requestId of hostInfo.requests.keys()) {
+                    this.requestIndexMap.delete(requestId);
+                }
+            }
+        }
+        this.storage.delete(tabId);
+    }
 
     addRequest(chromeTabId: number, url: string, requestId: string): void {
         const host = this.getHostFromUrl(url);
