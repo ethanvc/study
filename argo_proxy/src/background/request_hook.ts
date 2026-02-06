@@ -1,4 +1,4 @@
-import { NetEvaluator } from "./net_evaluator";
+import { NetEvaluator, RequestStatus } from "./net_evaluator";
 
 function init() {
     const filter: chrome.webRequest.RequestFilter = { urls: ['<all_urls>'] };
@@ -14,11 +14,11 @@ function onBeforeRequest(details: chrome.webRequest.WebRequestBodyDetails): void
 }
 
 function onCompleted(details: chrome.webRequest.WebResponseCacheDetails): void {
-    console.log(`completed request, id:${details.requestId}, url: ${details.url}`);
+    netEvaluator.finishRequest(details.requestId, RequestStatus.Ok);
 }
 
 function onErrorOccurred(details: chrome.webRequest.WebResponseErrorDetails): void {
-    console.log(`error occurred, id:${details.requestId}, url: ${details.url}`);
+    netEvaluator.finishRequest(details.requestId, RequestStatus.Failed);
 }
 
 export { init };
