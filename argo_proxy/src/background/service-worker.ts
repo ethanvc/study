@@ -9,7 +9,7 @@ import {
     MSG_TYPE_SET_ENABLED,
     MSG_TYPE_SET_RULE_PROXY,
     MSG_TYPE_GET_HOST_LIST,
-} from './messages';
+} from '../shared/messages';
 // 强制保留模块（避免被 tree-shake）
 init();
 const STORAGE_KEYS = { ENABLED: 'enabled', PROXIES: 'proxies', RULES: 'rules' } as const;
