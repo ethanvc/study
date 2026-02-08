@@ -69,7 +69,7 @@ export class NetEvaluator {
                 this.storage.delete(tabId);
             }
         }
-        console.log(`clearExpiredData finished: `, JSON.stringify(this.storage));
+        console.log(`clearExpiredData finished, remain tab size: `, this.storage.size);
     }
 
     private async isTabExists(tabId: number): Promise<boolean> {
