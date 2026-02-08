@@ -23,8 +23,8 @@ export function matchCurrentPage(url: string, rules: Rule[]): Rule | null {
     return null;
 }
 
-export function proxyIdToName(proxyId: string, proxies: { id: string; name: string }[], directLabel: string): string {
+export function proxyIdToName(proxyId: string, proxies: { name: string }[], directLabel: string): string {
     if (proxyId === 'direct' || !proxyId) return directLabel;
-    const p = proxies.find((x) => x.id === proxyId);
+    const p = proxies.find((x) => x.name === proxyId);
     return p ? p.name : proxyId;
 }

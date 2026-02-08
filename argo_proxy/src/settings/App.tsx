@@ -5,14 +5,15 @@ import { PROXY_ID_DIRECT, RULES_LIMIT } from '../shared/types';
 
 function proxyDisplayName(proxyId: string, proxies: Proxy[]): string {
     if (proxyId === PROXY_ID_DIRECT) return '直连';
-    const p = proxies.find((x) => x.id === proxyId);
+    const p = proxies.find((x) => x.name === proxyId);
     return p ? p.name : proxyId;
 }
 
 export default function App() {
     const { proxies, rules, load, addProxy, updateProxy, deleteProxy, addRule, updateRule, deleteRule } =
         useSettingsStore();
-    const [proxyForm, setProxyForm] = useState<Partial<Proxy> | null>(null);
+    const [proxyForm, setProxyForm] = useState<Partial<Proxy> & { username?: string; password?: string } | null>(null);
+    const [editingProxyName, setEditingProxyName] = useState<string | null>(null);
     const [ruleForm, setRuleForm] = useState<Partial<Rule> & { id?: string } | null>(null);
 
     useEffect(() => {
@@ -20,31 +21,24 @@ export default function App() {
     }, [load]);
 
     const handleSaveProxy = async () => {
-        const { name, type, host, port } = proxyForm ?? {};
+        const { name, protocol, host, port } = proxyForm ?? {};
         if (!name?.trim() || !host?.trim() || !port || port < 1 || port > 65535) {
             console.error('[Argo Proxy] saveProxy', new Error('invalid input'));
             return;
         }
-        if (proxyForm?.id) {
-            await updateProxy(proxyForm.id, {
-                name: name.trim(),
-                type: (type as Proxy['type']) ?? 'http',
-                host: host.trim(),
-                port,
-                username: proxyForm.username?.trim() || undefined,
-                password: proxyForm.password?.trim() || undefined,
-            });
+        const payload = {
+            name: name.trim(),
+            protocol: (protocol as Proxy['protocol']) ?? 'http',
+            host: host.trim(),
+            port,
+        };
+        if (editingProxyName !== null) {
+            await updateProxy(editingProxyName, payload);
         } else {
-            await addProxy({
-                name: name.trim(),
-                type: (type as Proxy['type']) ?? 'http',
-                host: host.trim(),
-                port,
-                username: proxyForm?.username?.trim() || undefined,
-                password: proxyForm?.password?.trim() || undefined,
-            });
+            await addProxy(payload as Proxy);
         }
         setProxyForm(null);
+        setEditingProxyName(null);
     };
 
     const handleSaveRule = async () => {
@@ -85,17 +79,20 @@ export default function App() {
             <div className="bg-white rounded-lg p-4 mb-4">
                 {proxies.map((p) => (
                     <div
-                        key={p.id}
+                        key={p.name}
                         className="flex items-center gap-3 py-2.5 px-3 bg-gray-50 rounded mb-2 text-sm last:mb-0"
                     >
                         <span className="flex-1 font-mono">{p.name}</span>
                         <span className="text-gray-500 text-xs">
-                            {p.type} · {p.host}
+                            {p.protocol} · {p.host}
                             {p.port ? ':' + p.port : ''}
                         </span>
                         <button
                             type="button"
-                            onClick={() => setProxyForm({ ...p })}
+                            onClick={() => {
+                                setEditingProxyName(p.name);
+                                setProxyForm({ ...p });
+                            }}
                             className="px-2.5 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
                         >
                             编辑
@@ -103,7 +100,7 @@ export default function App() {
                         <button
                             type="button"
                             onClick={async () => {
-                                if (confirm('确定删除该代理？使用该代理的规则将改为直连。')) await deleteProxy(p.id);
+                                if (confirm('确定删除该代理？使用该代理的规则将改为直连。')) await deleteProxy(p.name);
                             }}
                             className="px-2.5 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
                         >
@@ -122,8 +119,8 @@ export default function App() {
                         />
                         <select
                             className="w-full px-2.5 py-2 border rounded text-sm"
-                            value={proxyForm.type ?? 'http'}
-                            onChange={(e) => setProxyForm((f) => ({ ...f, type: e.target.value as Proxy['type'] }))}
+                            value={proxyForm.protocol ?? 'http'}
+                            onChange={(e) => setProxyForm((f) => ({ ...f, protocol: e.target.value as Proxy['protocol'] }))}
                         >
                             <option value="http">HTTP</option>
                             <option value="https">HTTPS</option>
@@ -167,7 +164,10 @@ export default function App() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setProxyForm(null)}
+                                onClick={() => {
+                                    setProxyForm(null);
+                                    setEditingProxyName(null);
+                                }}
                                 className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300"
                             >
                                 取消
@@ -177,7 +177,10 @@ export default function App() {
                 )}
                 <button
                     type="button"
-                    onClick={() => setProxyForm({ name: '', type: 'http', host: '', port: 0 })}
+                    onClick={() => {
+                        setEditingProxyName(null);
+                        setProxyForm({ name: '', protocol: 'http', host: '', port: 0 });
+                    }}
                     className="mt-3 px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
                 >
                     + 添加代理
@@ -237,7 +240,7 @@ export default function App() {
                         >
                             <option value={PROXY_ID_DIRECT}>直连</option>
                             {proxies.map((p) => (
-                                <option key={p.id} value={p.id}>
+                                <option key={p.name} value={p.name}>
                                     {p.name}
                                 </option>
                             ))}

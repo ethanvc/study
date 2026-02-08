@@ -19,7 +19,7 @@ const DEFAULT_ENABLED = true;
 
 interface Config {
     enabled: boolean;
-    proxies: { id: string; name: string; type: string; host: string; port: number }[];
+    proxies: { name: string; protocol: string; host: string; port: number }[];
     rules: Rule[];
 }
 interface Rule {

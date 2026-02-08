@@ -1,7 +1,6 @@
 export interface Proxy {
-    id: string;
     name: string;
-    type: string;
+    protocol: string;
     host: string;
     port: number;
 }

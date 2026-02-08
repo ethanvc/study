@@ -37,9 +37,9 @@ interface SettingsStore {
     proxies: Proxy[];
     rules: Rule[];
     load: () => Promise<void>;
-    addProxy: (p: Omit<Proxy, 'id'>) => Promise<void>;
-    updateProxy: (id: string, p: Partial<Proxy>) => Promise<void>;
-    deleteProxy: (id: string) => Promise<void>;
+    addProxy: (p: Proxy) => Promise<void>;
+    updateProxy: (name: string, p: Partial<Proxy>) => Promise<void>;
+    deleteProxy: (name: string) => Promise<void>;
     addRule: (r: Omit<Rule, 'id'>) => Promise<void>;
     updateRule: (id: string, r: Partial<Rule>) => Promise<void>;
     deleteRule: (id: string) => Promise<void>;
@@ -60,25 +60,30 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
     addProxy: async (p) => {
         const { proxies } = get();
-        const next: Proxy = { ...p, id: id() };
-        await setStorage({ [STORAGE_KEYS.PROXIES]: [...proxies, next] });
-        set({ proxies: [...proxies, next] });
+        await setStorage({ [STORAGE_KEYS.PROXIES]: [...proxies, p] });
+        set({ proxies: [...proxies, p] });
     },
 
-    updateProxy: async (proxyId, patch) => {
-        const { proxies } = get();
-        const idx = proxies.findIndex((x) => x.id === proxyId);
+    updateProxy: async (name, patch) => {
+        const { proxies, rules } = get();
+        const idx = proxies.findIndex((x) => x.name === name);
         if (idx === -1) return;
         const next = [...proxies];
         next[idx] = { ...next[idx], ...patch };
-        await setStorage({ [STORAGE_KEYS.PROXIES]: next });
-        set({ proxies: next });
+        if (patch.name !== undefined && patch.name !== name) {
+            const nextRules = rules.map((r) => (r.proxyId === name ? { ...r, proxyId: patch.name! } : r));
+            await setStorage({ [STORAGE_KEYS.PROXIES]: next, [STORAGE_KEYS.RULES]: nextRules });
+            set({ proxies: next, rules: nextRules });
+        } else {
+            await setStorage({ [STORAGE_KEYS.PROXIES]: next });
+            set({ proxies: next });
+        }
     },
 
-    deleteProxy: async (proxyId) => {
+    deleteProxy: async (name) => {
         const { proxies, rules } = get();
-        const nextProxies = proxies.filter((p) => p.id !== proxyId);
-        const nextRules = rules.map((r) => (r.proxyId === proxyId ? { ...r, proxyId: PROXY_ID_DIRECT } : r));
+        const nextProxies = proxies.filter((p) => p.name !== name);
+        const nextRules = rules.map((r) => (r.proxyId === name ? { ...r, proxyId: PROXY_ID_DIRECT } : r));
         await setStorage({ [STORAGE_KEYS.PROXIES]: nextProxies, [STORAGE_KEYS.RULES]: nextRules });
         set({ proxies: nextProxies, rules: nextRules });
     },
