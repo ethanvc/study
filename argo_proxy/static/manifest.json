@@ -4,17 +4,17 @@
   "version": "0.1.0",
   "description": "按域名/路径将请求路由到不同代理，供测试/开发环境切换。",
   "action": {
-    "default_popup": "popup/popup.html",
+    "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "icons/16.png",
       "48": "icons/48.png"
     }
   },
   "background": {
-    "service_worker": "background/service-worker.js"
+    "service_worker": "service-worker.js"
   },
   "options_ui": {
-    "page": "settings/settings.html"
+    "page": "src/settings/settings.html"
   },
   "permissions": [
     "storage",

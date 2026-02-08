@@ -20,7 +20,7 @@ export interface HostInfo {
 }
 
 const MAX_REQUEST_COUNT = 5;
-const CLEANUP_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+const CLEANUP_INTERVAL_MS = 1 * 5 * 1000; // 3 minutes
 const HOST_EXPIRE_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
@@ -69,6 +69,7 @@ export class NetEvaluator {
                 this.storage.delete(tabId);
             }
         }
+        console.log(`clearExpiredData finished: `, JSON.stringify(this.storage));
     }
 
     private async isTabExists(tabId: number): Promise<boolean> {
