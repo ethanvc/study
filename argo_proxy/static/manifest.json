@@ -15,7 +15,8 @@
     "type": "module"
   },
   "options_ui": {
-    "page": "src/settings/settings.html"
+    "page": "src/settings/settings.html",
+    "open_in_tab": true
   },
   "permissions": [
     "storage",
