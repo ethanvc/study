@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useConfigStore } from '../shared/store';
 import { matchCurrentPage, proxyIdToName } from '../shared/match';
+import { MSG_TYPE_GET_HOST_LIST } from '../shared/messages';
 import EnableProxySwitch from './components/EnableProxySwitch';
 import HostListView from './components/HostListView';
 
@@ -56,7 +57,7 @@ export default function App() {
             if (tabId !== undefined) {
                 setHostListLoading(true);
                 chrome.runtime
-                    .sendMessage({ type: 'getHostList', tabId })
+                    .sendMessage({ type: MSG_TYPE_GET_HOST_LIST, tabId })
                     .then((list: HostStatusItem[]) => {
                         setHostList(Array.isArray(list) ? list : []);
                     })

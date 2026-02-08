@@ -4,6 +4,12 @@
  */
 // Request Logger: 导入并调用以确保不被 tree-shake
 import { init, getHostListByTabId } from './request_hook';
+import {
+    MSG_TYPE_GET_CONFIG,
+    MSG_TYPE_SET_ENABLED,
+    MSG_TYPE_SET_RULE_PROXY,
+    MSG_TYPE_GET_HOST_LIST,
+} from '../shared/messages';
 // 强制保留模块（避免被 tree-shake）
 init();
 const STORAGE_KEYS = { ENABLED: 'enabled', PROXIES: 'proxies', RULES: 'rules' } as const;
@@ -141,11 +147,6 @@ chrome.storage.onChanged.addListener(
     }
 );
 
-const MSG_TYPE_GET_CONFIG = 'getConfig' as const;
-const MSG_TYPE_SET_ENABLED = 'setEnabled' as const;
-const MSG_TYPE_SET_RULE_PROXY = 'setRuleProxy' as const;
-const MSG_TYPE_GET_HOST_LIST = 'getHostList' as const;
-
 type IncomingMessage =
     | { type: typeof MSG_TYPE_GET_CONFIG }
     | { type: typeof MSG_TYPE_SET_ENABLED; enabled: boolean }
@@ -199,6 +200,7 @@ function handleSetRuleProxy(ruleId: string, proxyId: string, sendResponse: SendR
 }
 
 function handleGetHostList(tabId: number, sendResponse: SendResponse): boolean {
+    console.log('handleGetHostList, tabId: ', tabId);
     try {
         const list = getHostListByTabId(tabId);
         sendResponse(list);
