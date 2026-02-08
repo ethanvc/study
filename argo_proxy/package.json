@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
+    "prebuild": "node scripts/pre-build.js",
+    "prebuild:dev": "node scripts/pre-build.js",
     "build": "vite build && node scripts/copy-extension-assets.js",
     "build:dev": "vite build --minify false --sourcemap && node scripts/copy-extension-assets.js",
     "preview": "vite preview"
