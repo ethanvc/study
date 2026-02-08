@@ -141,70 +141,92 @@ chrome.storage.onChanged.addListener(
     }
 );
 
+const MSG_TYPE_GET_CONFIG = 'getConfig' as const;
+const MSG_TYPE_SET_ENABLED = 'setEnabled' as const;
+const MSG_TYPE_SET_RULE_PROXY = 'setRuleProxy' as const;
+const MSG_TYPE_GET_HOST_LIST = 'getHostList' as const;
+
 type IncomingMessage =
-    | { type: 'getConfig' }
-    | { type: 'setEnabled'; enabled: boolean }
-    | { type: 'setRuleProxy'; ruleId: string; proxyId: string }
-    | { type: 'getHostList'; tabId: number };
+    | { type: typeof MSG_TYPE_GET_CONFIG }
+    | { type: typeof MSG_TYPE_SET_ENABLED; enabled: boolean }
+    | { type: typeof MSG_TYPE_SET_RULE_PROXY; ruleId: string; proxyId: string }
+    | { type: typeof MSG_TYPE_GET_HOST_LIST; tabId: number };
+
+type SendResponse = (response?: unknown) => void;
+
+function handleGetConfig(sendResponse: SendResponse): boolean {
+    getConfig()
+        .then(sendResponse)
+        .catch((e) => {
+            logError('getConfig', e);
+            sendResponse({ enabled: true, proxies: [], rules: [] });
+        });
+    return true;
+}
+
+function handleSetEnabled(enabled: boolean, sendResponse: SendResponse): boolean {
+    setEnabled(enabled === true)
+        .then(() => sendResponse({ ok: true }))
+        .catch((e) => {
+            logError('setEnabled', e);
+            sendResponse({ ok: false, error: String(e) });
+        });
+    return true;
+}
+
+function handleSetRuleProxy(ruleId: string, proxyId: string, sendResponse: SendResponse): boolean {
+    chrome.storage.local.get(STORAGE_KEYS.RULES).then((out) => {
+        let rules: Rule[] = Array.isArray(out[STORAGE_KEYS.RULES])
+            ? out[STORAGE_KEYS.RULES]
+            : [];
+        const idx = rules.findIndex((r) => r.id === ruleId);
+        if (idx !== -1) {
+            rules = [...rules];
+            rules[idx] = { ...rules[idx], proxyId };
+            chrome.storage.local
+                .set({ [STORAGE_KEYS.RULES]: rules })
+                .then(() => sendResponse({ ok: true }))
+                .catch((e) => {
+                    logError('setRuleProxy (set)', e);
+                    sendResponse({ ok: false, error: String(e) });
+                });
+        } else {
+            logError('setRuleProxy', new Error('rule not found: ' + ruleId));
+            sendResponse({ ok: false, error: 'rule not found' });
+        }
+    });
+    return true;
+}
+
+function handleGetHostList(tabId: number, sendResponse: SendResponse): boolean {
+    try {
+        const list = getHostListByTabId(tabId);
+        sendResponse(list);
+    } catch (e) {
+        logError('getHostList', e);
+        sendResponse([]);
+    }
+    return true;
+}
 
 chrome.runtime.onMessage.addListener(
     (
         msg: IncomingMessage,
         _sender: chrome.runtime.MessageSender,
-        sendResponse: (response?: unknown) => void
+        sendResponse: SendResponse
     ): boolean => {
-        if (msg.type === 'getConfig') {
-            getConfig()
-                .then(sendResponse)
-                .catch((e) => {
-                    logError('getConfig', e);
-                    sendResponse({ enabled: true, proxies: [], rules: [] });
-                });
-            return true;
+        switch (msg.type) {
+            case MSG_TYPE_GET_CONFIG:
+                return handleGetConfig(sendResponse);
+            case MSG_TYPE_SET_ENABLED:
+                return handleSetEnabled(msg.enabled, sendResponse);
+            case MSG_TYPE_SET_RULE_PROXY:
+                return handleSetRuleProxy(msg.ruleId, msg.proxyId, sendResponse);
+            case MSG_TYPE_GET_HOST_LIST:
+                return handleGetHostList(msg.tabId, sendResponse);
+            default:
+                return false;
         }
-        if (msg.type === 'setEnabled') {
-            setEnabled(msg.enabled === true)
-                .then(() => sendResponse({ ok: true }))
-                .catch((e) => {
-                    logError('setEnabled', e);
-                    sendResponse({ ok: false, error: String(e) });
-                });
-            return true;
-        }
-        if (msg.type === 'setRuleProxy') {
-            chrome.storage.local.get(STORAGE_KEYS.RULES).then((out) => {
-                let rules: Rule[] = Array.isArray(out[STORAGE_KEYS.RULES])
-                    ? out[STORAGE_KEYS.RULES]
-                    : [];
-                const idx = rules.findIndex((r) => r.id === msg.ruleId);
-                if (idx !== -1) {
-                    rules = [...rules];
-                    rules[idx] = { ...rules[idx], proxyId: msg.proxyId };
-                    chrome.storage.local
-                        .set({ [STORAGE_KEYS.RULES]: rules })
-                        .then(() => sendResponse({ ok: true }))
-                        .catch((e) => {
-                            logError('setRuleProxy (set)', e);
-                            sendResponse({ ok: false, error: String(e) });
-                        });
-                } else {
-                    logError('setRuleProxy', new Error('rule not found: ' + msg.ruleId));
-                    sendResponse({ ok: false, error: 'rule not found' });
-                }
-            });
-            return true;
-        }
-        if (msg.type === 'getHostList') {
-            try {
-                const list = getHostListByTabId(msg.tabId);
-                sendResponse(list);
-            } catch (e) {
-                logError('getHostList', e);
-                sendResponse([]);
-            }
-            return true;
-        }
-        return false;
     }
 );
 
