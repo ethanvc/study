@@ -3,7 +3,7 @@
  * Inlined constants so this entry is bundled as a single file (no shared chunk → no top-level import).
  */
 // Request Logger: 导入并调用以确保不被 tree-shake
-import { init } from './request_hook';
+import { init, getHostListByTabId } from './request_hook';
 // 强制保留模块（避免被 tree-shake）
 init();
 const STORAGE_KEYS = { ENABLED: 'enabled', PROXIES: 'proxies', RULES: 'rules' } as const;
@@ -144,7 +144,8 @@ chrome.storage.onChanged.addListener(
 type IncomingMessage =
     | { type: 'getConfig' }
     | { type: 'setEnabled'; enabled: boolean }
-    | { type: 'setRuleProxy'; ruleId: string; proxyId: string };
+    | { type: 'setRuleProxy'; ruleId: string; proxyId: string }
+    | { type: 'getHostList'; tabId: number };
 
 chrome.runtime.onMessage.addListener(
     (
@@ -191,6 +192,16 @@ chrome.runtime.onMessage.addListener(
                     sendResponse({ ok: false, error: 'rule not found' });
                 }
             });
+            return true;
+        }
+        if (msg.type === 'getHostList') {
+            try {
+                const list = getHostListByTabId(msg.tabId);
+                sendResponse(list);
+            } catch (e) {
+                logError('getHostList', e);
+                sendResponse([]);
+            }
             return true;
         }
         return false;

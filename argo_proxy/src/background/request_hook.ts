@@ -21,4 +21,8 @@ function onErrorOccurred(details: chrome.webRequest.WebResponseErrorDetails): vo
     netEvaluator.finishRequest(details.requestId, RequestStatus.Failed);
 }
 
-export { init };
+function getHostListByTabId(tabId: number) {
+    return netEvaluator.getHostListByTabId(tabId);
+}
+
+export { init, getHostListByTabId };

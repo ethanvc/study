@@ -157,6 +157,33 @@ export class NetEvaluator {
         return this.storage.get(chromeTabId);
     }
 
+    /** 可序列化的 host 项，用于跨上下文传递。 */
+    getHostListByTabId(chromeTabId: number): Array<{
+        host: string;
+        status: RequestStatus;
+        lastAccessTime: number;
+        pendingRequestCount: number;
+    }> {
+        const hostMap = this.storage.get(chromeTabId);
+        if (!hostMap) return [];
+        const list: Array<{
+            host: string;
+            status: RequestStatus;
+            lastAccessTime: number;
+            pendingRequestCount: number;
+        }> = [];
+        for (const [, info] of hostMap) {
+            list.push({
+                host: info.host,
+                status: info.status,
+                lastAccessTime: info.lastAccessTime,
+                pendingRequestCount: info.requests.size,
+            });
+        }
+        list.sort((a, b) => a.lastAccessTime - b.lastAccessTime);
+        return list;
+    }
+
     /** 移除整个 tab 的数据（如 tab 关闭时调用）。 */
     removeTab(chromeTabId: number): void {
         this.storage.delete(chromeTabId);

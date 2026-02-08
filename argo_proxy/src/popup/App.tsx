@@ -4,11 +4,20 @@ import { matchCurrentPage, proxyIdToName } from '../shared/match';
 import EnableProxySwitch from './components/EnableProxySwitch';
 import HostListView from './components/HostListView';
 
+export interface HostStatusItem {
+    host: string;
+    status: string;
+    lastAccessTime: number;
+    pendingRequestCount: number;
+}
+
 export default function App() {
     const { enabled, rules, proxies, setEnabled, setRuleProxy, loadConfig } = useConfigStore();
     const [view, setView] = useState<'main' | 'host'>('main');
     const [currentPage, setCurrentPage] = useState<{ host: string; proxyName: string } | null>(null);
     const [currentPageError, setCurrentPageError] = useState(false);
+    const [hostList, setHostList] = useState<HostStatusItem[]>([]);
+    const [hostListLoading, setHostListLoading] = useState(false);
 
     useEffect(() => {
         loadConfig();
@@ -18,9 +27,11 @@ export default function App() {
         if (view !== 'host') return;
         setCurrentPage(null);
         setCurrentPageError(false);
+        setHostList([]);
         chrome.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
             const tab = tabs?.[0];
             const url = tab?.url;
+            const tabId = tab?.id;
             if (
                 !url ||
                 url.startsWith('chrome://') ||
@@ -28,20 +39,30 @@ export default function App() {
                 url.startsWith('about:')
             ) {
                 setCurrentPageError(true);
-                return;
+            } else {
+                const matched = matchCurrentPage(url, enabled ? rules : []);
+                let hostLabel = url;
+                try {
+                    const u = new URL(url);
+                    hostLabel = u.hostname + (u.pathname !== '/' ? u.pathname : '');
+                } catch {
+                    // keep url
+                }
+                const proxyName = matched
+                    ? proxyIdToName(matched.proxyId, proxies, '直连')
+                    : '直连';
+                setCurrentPage({ host: hostLabel, proxyName });
             }
-            const matched = matchCurrentPage(url, enabled ? rules : []);
-            let hostLabel = url;
-            try {
-                const u = new URL(url);
-                hostLabel = u.hostname + (u.pathname !== '/' ? u.pathname : '');
-            } catch {
-                // keep url
+            if (tabId !== undefined) {
+                setHostListLoading(true);
+                chrome.runtime
+                    .sendMessage({ type: 'getHostList', tabId })
+                    .then((list: HostStatusItem[]) => {
+                        setHostList(Array.isArray(list) ? list : []);
+                    })
+                    .catch(() => setHostList([]))
+                    .finally(() => setHostListLoading(false));
             }
-            const proxyName = matched
-                ? proxyIdToName(matched.proxyId, proxies, '直连')
-                : '直连';
-            setCurrentPage({ host: hostLabel, proxyName });
         });
     }, [view, enabled, rules, proxies]);
 
@@ -79,6 +100,8 @@ export default function App() {
         <HostListView
             currentPage={currentPage}
             currentPageError={currentPageError}
+            hostList={hostList}
+            hostListLoading={hostListLoading}
             sortedRules={sortedRules}
             proxies={proxies}
             onBack={() => setView('main')}

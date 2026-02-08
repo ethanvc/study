@@ -1,5 +1,5 @@
 import type { Proxy, Rule } from '../../shared/types';
-import { PROXY_ID_DIRECT } from '../../shared/types';
+import type { HostStatusItem } from '../App';
 
 interface CurrentPageInfo {
     host: string;
@@ -9,6 +9,8 @@ interface CurrentPageInfo {
 interface HostListViewProps {
     currentPage: CurrentPageInfo | null;
     currentPageError: boolean;
+    hostList: HostStatusItem[];
+    hostListLoading: boolean;
     sortedRules: Rule[];
     proxies: Proxy[];
     onBack: () => void;
@@ -16,9 +18,38 @@ interface HostListViewProps {
     onOpenSettings: () => void;
 }
 
+function statusLabel(status: string): string {
+    switch (status) {
+        case 'pending':
+            return '请求中';
+        case 'ok':
+            return '成功';
+        case 'failed':
+            return '失败';
+        case 'timeout':
+            return '超时';
+        default:
+            return status;
+    }
+}
+
+function statusClass(status: string): string {
+    switch (status) {
+        case 'ok':
+            return 'text-green-600';
+        case 'failed':
+        case 'timeout':
+            return 'text-red-600';
+        default:
+            return 'text-gray-500';
+    }
+}
+
 export default function HostListView({
     currentPage,
     currentPageError,
+    hostList,
+    hostListLoading,
     onBack,
 }: HostListViewProps) {
     return (
@@ -48,6 +79,32 @@ export default function HostListView({
                     <span className="text-blue-600 ml-1">→ {currentPage.proxyName}</span>
                 </div>
             )}
+
+            <div className="mt-2">
+                <div className="text-gray-500 text-xs mb-1">本页 Host 访问状态</div>
+                {hostListLoading ? (
+                    <div className="p-3 bg-white rounded-lg text-sm text-gray-500">加载中...</div>
+                ) : hostList.length === 0 ? (
+                    <div className="p-3 bg-white rounded-lg text-sm text-gray-500">暂无记录</div>
+                ) : (
+                    <ul className="space-y-1">
+                        {hostList.map((item) => (
+                            <li
+                                key={item.host}
+                                className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg text-sm"
+                            >
+                                <span className="font-mono text-gray-800 truncate flex-1 min-w-0">
+                                    {item.host}
+                                </span>
+                                <span className={`shrink-0 text-xs ${statusClass(item.status)}`}>
+                                    {statusLabel(item.status)}
+                                    {item.pendingRequestCount > 0 && ` (${item.pendingRequestCount})`}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
         </div>
     );
 }
