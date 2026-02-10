@@ -1,4 +1,3 @@
-import type { Proxy, Rule } from '../../shared/types';
 import type { HostStatusItem } from '../App';
 
 interface CurrentPageInfo {
@@ -11,10 +10,7 @@ interface HostListViewProps {
     currentPageError: boolean;
     hostList: HostStatusItem[];
     hostListLoading: boolean;
-    sortedRules: Rule[];
-    proxies: Proxy[];
     onBack: () => void;
-    onSetRuleProxy: (ruleId: string, proxyId: string) => void;
     onOpenSettings: () => void;
 }
 

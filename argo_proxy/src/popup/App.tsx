@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useConfigStore } from '../shared/store';
-import { matchCurrentPage, proxyIdToName } from '../shared/match';
 import { MSG_TYPE_GET_HOST_LIST } from '../shared/messages';
 import EnableProxySwitch from './components/EnableProxySwitch';
 import HostListView from './components/HostListView';
@@ -13,7 +12,7 @@ export interface HostStatusItem {
 }
 
 export default function App() {
-    const { enabled, rules, proxies, setEnabled, setRuleProxy, loadConfig } = useConfigStore();
+    const { enabled, proxies, setEnabled, loadConfig } = useConfigStore();
     const [view, setView] = useState<'main' | 'host'>('main');
     const [currentPage, setCurrentPage] = useState<{ host: string; proxyName: string } | null>(null);
     const [currentPageError, setCurrentPageError] = useState(false);
@@ -41,7 +40,6 @@ export default function App() {
             ) {
                 setCurrentPageError(true);
             } else {
-                const matched = matchCurrentPage(url, enabled ? rules : []);
                 let hostLabel = url;
                 try {
                     const u = new URL(url);
@@ -49,10 +47,7 @@ export default function App() {
                 } catch {
                     // keep url
                 }
-                const proxyName = matched
-                    ? proxyIdToName(matched.proxyId, proxies, '直连')
-                    : '直连';
-                setCurrentPage({ host: hostLabel, proxyName });
+                setCurrentPage({ host: hostLabel, proxyName: '直连' });
             }
             if (tabId !== undefined) {
                 setHostListLoading(true);
@@ -65,9 +60,7 @@ export default function App() {
                     .finally(() => setHostListLoading(false));
             }
         });
-    }, [view, enabled, rules, proxies]);
-
-    const sortedRules = [...rules].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }, [view, enabled, proxies]);
 
     const openSettings = () => chrome.runtime?.openOptionsPage?.();
 
@@ -82,7 +75,7 @@ export default function App() {
                 >
                     <span>Host 列表</span>
                     <span className={`text-xs ${!enabled ? 'text-orange-600' : 'text-gray-500'}`}>
-                        {enabled ? `${rules.length} 条` : '已暂停'}
+                        {enabled ? '已启用' : '已暂停'}
                     </span>
                     <span className="text-gray-400">›</span>
                 </button>
@@ -103,10 +96,7 @@ export default function App() {
             currentPageError={currentPageError}
             hostList={hostList}
             hostListLoading={hostListLoading}
-            sortedRules={sortedRules}
-            proxies={proxies}
             onBack={() => setView('main')}
-            onSetRuleProxy={setRuleProxy}
             onOpenSettings={openSettings}
         />
     );

@@ -1,119 +1,69 @@
 import { create } from 'zustand';
-import type { Proxy, Rule } from '../shared/types';
-import { STORAGE_KEYS, PROXY_ID_DIRECT, RULES_LIMIT } from '../shared/types';
+import type { Proxy } from '../shared/types';
+import { STORAGE_KEYS, Config } from '../shared/types';
 
-function id(): string {
-    return crypto.randomUUID?.() ?? 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+async function getConfig(): Promise<Config> {
+    const out = await chrome.storage.local.get([STORAGE_KEYS.CONFIG]);
+    return Config.fromStorage(out);
 }
 
-function getStorage(): Promise<{ proxies: Proxy[]; rules: Rule[] }> {
-    return new Promise((resolve, reject) => {
-        chrome.storage.local.get([STORAGE_KEYS.PROXIES, STORAGE_KEYS.RULES], (out) => {
-            if (chrome.runtime.lastError) {
-                console.error('[Argo Proxy] getStorage', chrome.runtime.lastError);
-                reject(chrome.runtime.lastError);
-            } else {
-                resolve({
-                    proxies: Array.isArray(out[STORAGE_KEYS.PROXIES]) ? out[STORAGE_KEYS.PROXIES] : [],
-                    rules: Array.isArray(out[STORAGE_KEYS.RULES]) ? out[STORAGE_KEYS.RULES] : [],
-                });
-            }
-        });
-    });
-}
-
-function setStorage(partial: Partial<Record<string, Proxy[] | Rule[]>>): Promise<void> {
-    return new Promise((resolve, reject) => {
-        chrome.storage.local.set(partial, () => {
-            if (chrome.runtime.lastError) {
-                console.error('[Argo Proxy] setStorage', chrome.runtime.lastError);
-                reject(chrome.runtime.lastError);
-            } else resolve();
-        });
-    });
+async function saveConfig(config: Config): Promise<void> {
+    await chrome.storage.local.set(config.toStorage());
 }
 
 interface SettingsStore {
     proxies: Proxy[];
-    rules: Rule[];
     load: () => Promise<void>;
     addProxy: (p: Proxy) => Promise<void>;
     updateProxy: (name: string, p: Partial<Proxy>) => Promise<void>;
     deleteProxy: (name: string) => Promise<void>;
-    addRule: (r: Omit<Rule, 'id'>) => Promise<void>;
-    updateRule: (id: string, r: Partial<Rule>) => Promise<void>;
-    deleteRule: (id: string) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
     proxies: [],
-    rules: [],
 
     load: async () => {
         try {
-            const data = await getStorage();
-            set(data);
+            const config = await getConfig();
+            set({ proxies: config.proxies });
         } catch (e) {
             console.error('[Argo Proxy] settings load', e);
         }
     },
 
     addProxy: async (p) => {
-        const { proxies } = get();
-        await setStorage({ [STORAGE_KEYS.PROXIES]: [...proxies, p] });
-        set({ proxies: [...proxies, p] });
+        try {
+            const config = await getConfig();
+            config.proxies = [...config.proxies, p];
+            await saveConfig(config);
+            set({ proxies: config.proxies });
+        } catch (e) {
+            console.error('[Argo Proxy] addProxy', e);
+        }
     },
 
     updateProxy: async (name, patch) => {
-        const { proxies, rules } = get();
-        const idx = proxies.findIndex((x) => x.name === name);
-        if (idx === -1) return;
-        const next = [...proxies];
-        next[idx] = { ...next[idx], ...patch };
-        if (patch.name !== undefined && patch.name !== name) {
-            const nextRules = rules.map((r) => (r.proxyId === name ? { ...r, proxyId: patch.name! } : r));
-            await setStorage({ [STORAGE_KEYS.PROXIES]: next, [STORAGE_KEYS.RULES]: nextRules });
-            set({ proxies: next, rules: nextRules });
-        } else {
-            await setStorage({ [STORAGE_KEYS.PROXIES]: next });
-            set({ proxies: next });
+        try {
+            const config = await getConfig();
+            const idx = config.proxies.findIndex((x) => x.name === name);
+            if (idx === -1) return;
+            config.proxies = [...config.proxies];
+            config.proxies[idx] = { ...config.proxies[idx], ...patch };
+            await saveConfig(config);
+            set({ proxies: config.proxies });
+        } catch (e) {
+            console.error('[Argo Proxy] updateProxy', e);
         }
     },
 
     deleteProxy: async (name) => {
-        const { proxies, rules } = get();
-        const nextProxies = proxies.filter((p) => p.name !== name);
-        const nextRules = rules.map((r) => (r.proxyId === name ? { ...r, proxyId: PROXY_ID_DIRECT } : r));
-        await setStorage({ [STORAGE_KEYS.PROXIES]: nextProxies, [STORAGE_KEYS.RULES]: nextRules });
-        set({ proxies: nextProxies, rules: nextRules });
-    },
-
-    addRule: async (r) => {
-        const { rules } = get();
-        if (rules.length >= RULES_LIMIT) {
-            console.error('[Argo Proxy] saveRule', new Error('规则数量已达上限 ' + RULES_LIMIT + ' 条'));
-            alert('规则数量已达上限 ' + RULES_LIMIT + ' 条');
-            return;
+        try {
+            const config = await getConfig();
+            config.proxies = config.proxies.filter((p) => p.name !== name);
+            await saveConfig(config);
+            set({ proxies: config.proxies });
+        } catch (e) {
+            console.error('[Argo Proxy] deleteProxy', e);
         }
-        const next: Rule = { ...r, id: id() };
-        await setStorage({ [STORAGE_KEYS.RULES]: [...rules, next] });
-        set({ rules: [...rules, next] });
-    },
-
-    updateRule: async (ruleId, patch) => {
-        const { rules } = get();
-        const idx = rules.findIndex((x) => x.id === ruleId);
-        if (idx === -1) return;
-        const next = [...rules];
-        next[idx] = { ...next[idx], ...patch };
-        await setStorage({ [STORAGE_KEYS.RULES]: next });
-        set({ rules: next });
-    },
-
-    deleteRule: async (ruleId) => {
-        const { rules } = get();
-        const next = rules.filter((r) => r.id !== ruleId);
-        await setStorage({ [STORAGE_KEYS.RULES]: next });
-        set({ rules: next });
     },
 }));
