@@ -1,27 +1,21 @@
 import { create } from 'zustand';
-import type { Proxy } from './types';
 import { STORAGE_KEYS, Config } from './types';
 
 interface ConfigStore {
-    enabled: boolean;
-    proxies: Proxy[];
+    config: Config;
     loadConfig: () => Promise<void>;
     setEnabled: (enabled: boolean) => Promise<void>;
 }
 
 export const useConfigStore = create<ConfigStore>((set) => ({
-    enabled: true,
-    proxies: [],
+    config: new Config(),
 
     loadConfig: async () => {
         try {
             // 直接从 storage 读取，避免 service worker 未启动的问题
             const out = await chrome.storage.local.get([STORAGE_KEYS.CONFIG]);
             const config = Config.fromStorage(out);
-            set({
-                enabled: config.enabled,
-                proxies: config.proxies,
-            });
+            set({ config });
         } catch (e) {
             console.error('[Argo Proxy] loadConfig', e);
         }
@@ -34,7 +28,7 @@ export const useConfigStore = create<ConfigStore>((set) => ({
             const config = Config.fromStorage(out);
             config.enabled = enabled;
             await chrome.storage.local.set(config.toStorage());
-            set({ enabled });
+            set({ config: new Config(config) });
         } catch (e) {
             console.error('[Argo Proxy] setEnabled', e);
         }

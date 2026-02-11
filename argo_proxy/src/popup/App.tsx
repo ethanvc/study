@@ -12,7 +12,7 @@ export interface HostStatusItem {
 }
 
 export default function App() {
-    const { enabled, proxies, setEnabled, loadConfig } = useConfigStore();
+    const { config, setEnabled, loadConfig } = useConfigStore();
     const [view, setView] = useState<'main' | 'host'>('main');
     const [currentPage, setCurrentPage] = useState<{ host: string; proxyName: string } | null>(null);
     const [currentPageError, setCurrentPageError] = useState(false);
@@ -60,22 +60,22 @@ export default function App() {
                     .finally(() => setHostListLoading(false));
             }
         });
-    }, [view, enabled, proxies]);
+    }, [view, config.enabled, config.proxies]);
 
     const openSettings = () => chrome.runtime?.openOptionsPage?.();
 
     if (view === 'main') {
         return (
             <div className="p-3 bg-gray-100 min-w-[260px]">
-                <EnableProxySwitch enabled={enabled} onToggle={() => setEnabled(!enabled)} />
+                <EnableProxySwitch enabled={config.enabled} onToggle={() => setEnabled(!config.enabled)} />
                 <button
                     type="button"
                     onClick={() => setView('host')}
                     className="flex items-center justify-between w-full gap-2 px-3 py-2.5 mb-1 text-left bg-white rounded-lg hover:bg-gray-100 text-sm font-medium"
                 >
                     <span>Host 列表</span>
-                    <span className={`text-xs ${!enabled ? 'text-orange-600' : 'text-gray-500'}`}>
-                        {enabled ? '已启用' : '已暂停'}
+                    <span className={`text-xs ${!config.enabled ? 'text-orange-600' : 'text-gray-500'}`}>
+                        {config.enabled ? '已启用' : '已暂停'}
                     </span>
                     <span className="text-gray-400">›</span>
                 </button>
