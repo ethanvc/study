@@ -4,7 +4,7 @@ import { STORAGE_KEYS, Config } from './types';
 interface ConfigStore {
     config: Config;
     loadConfig: () => Promise<void>;
-    setEnabled: (enabled: boolean) => Promise<void>;
+    setConfig: (config: Config) => Promise<void>;
 }
 
 export const useConfigStore = create<ConfigStore>((set) => ({
@@ -21,16 +21,12 @@ export const useConfigStore = create<ConfigStore>((set) => ({
         }
     },
 
-    setEnabled: async (enabled: boolean) => {
+    setConfig: async (config: Config) => {
         try {
-            // 读取当前配置，更新 enabled 后一起写回
-            const out = await chrome.storage.local.get([STORAGE_KEYS.CONFIG]);
-            const config = Config.fromStorage(out);
-            config.enabled = enabled;
             await chrome.storage.local.set(config.toStorage());
-            set({ config: new Config(config) });
+            set({ config });
         } catch (e) {
-            console.error('[Argo Proxy] setEnabled', e);
+            console.error('[Argo Proxy] setConfig', e);
         }
     },
 }));
