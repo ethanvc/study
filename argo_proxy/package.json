@@ -11,11 +11,18 @@
     "build:dev": "vite build --minify false --sourcemap && node scripts/copy-extension-assets.js",
     "preview": "vite preview"
   },
-  "dependencies": {
+"dependencies": {
+    "@radix-ui/react-label": "^2.0.2",
+    "@radix-ui/react-select": "^2.0.0",
+    "@radix-ui/react-slot": "^1.0.2",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.460.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tailwind-merge": "^2.5.4",
     "zustand": "^4.4.7"
-  },
+},
   "devDependencies": {
     "@types/chrome": "^0.0.254",
     "@types/react": "^18.2.43",

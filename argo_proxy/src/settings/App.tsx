@@ -1,15 +1,42 @@
 import { useEffect, useState } from 'react';
-import { useSettingsStore } from './settingsStore';
+import { Config } from '../shared/types';
+import { useConfigStore } from '../shared/store';
 import type { Proxy } from '../shared/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Plus, Pencil, Trash2, Server } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const SIDEBAR_ITEMS = [
+    { id: 'proxy', label: 'Proxy', icon: Server },
+] as const;
 
 export default function App() {
-    const { proxies, load, addProxy, updateProxy, deleteProxy } = useSettingsStore();
+    const { config, loadConfig, setConfig } = useConfigStore();
+    const proxies = config.proxies;
+    const [activeSection, setActiveSection] = useState<(typeof SIDEBAR_ITEMS)[number]['id']>('proxy');
     const [proxyForm, setProxyForm] = useState<Partial<Proxy> & { username?: string; password?: string } | null>(null);
     const [editingProxyName, setEditingProxyName] = useState<string | null>(null);
 
     useEffect(() => {
-        load();
-    }, [load]);
+        loadConfig();
+    }, [loadConfig]);
 
     const handleSaveProxy = async () => {
         const { name, protocol, host, port } = proxyForm ?? {};
@@ -24,129 +51,229 @@ export default function App() {
             port,
         };
         if (editingProxyName !== null) {
-            await updateProxy(editingProxyName, payload);
+            const idx = config.proxies.findIndex((x) => x.name === editingProxyName);
+            if (idx === -1) return;
+            const next = [...config.proxies];
+            next[idx] = { ...next[idx], ...payload };
+            await setConfig(new Config({ ...config, proxies: next }));
         } else {
-            await addProxy(payload as Proxy);
+            await setConfig(new Config({ ...config, proxies: [...config.proxies, payload as Proxy] }));
         }
         setProxyForm(null);
         setEditingProxyName(null);
     };
 
     return (
-        <div className="p-5 max-w-[560px]">
-            <h1 className="text-xl font-semibold mb-6">Argo Proxy 设置</h1>
-
-            <h2 className="text-[15px] font-semibold text-gray-800 mt-5 mb-2">代理列表</h2>
-            <div className="bg-white rounded-lg p-4 mb-4">
-                {proxies.map((p) => (
-                    <div
-                        key={p.name}
-                        className="flex items-center gap-3 py-2.5 px-3 bg-gray-50 rounded mb-2 text-sm last:mb-0"
-                    >
-                        <span className="flex-1 font-mono">{p.name}</span>
-                        <span className="text-gray-500 text-xs">
-                            {p.protocol} · {p.host}
-                            {p.port ? ':' + p.port : ''}
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setEditingProxyName(p.name);
-                                setProxyForm({ ...p });
-                            }}
-                            className="px-2.5 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
-                        >
-                            编辑
-                        </button>
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                if (confirm('确定删除该代理？')) await deleteProxy(p.name);
-                            }}
-                            className="px-2.5 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-                        >
-                            删除
-                        </button>
-                    </div>
-                ))}
-
-                {proxyForm && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
-                        <input
-                            className="w-full px-2.5 py-2 border rounded text-sm"
-                            placeholder="名称"
-                            value={proxyForm.name ?? ''}
-                            onChange={(e) => setProxyForm((f) => ({ ...f, name: e.target.value }))}
-                        />
-                        <select
-                            className="w-full px-2.5 py-2 border rounded text-sm"
-                            value={proxyForm.protocol ?? 'http'}
-                            onChange={(e) => setProxyForm((f) => ({ ...f, protocol: e.target.value as Proxy['protocol'] }))}
-                        >
-                            <option value="http">HTTP</option>
-                            <option value="https">HTTPS</option>
-                            <option value="socks">SOCKS</option>
-                        </select>
-                        <input
-                            className="w-full px-2.5 py-2 border rounded text-sm"
-                            placeholder="主机"
-                            value={proxyForm.host ?? ''}
-                            onChange={(e) => setProxyForm((f) => ({ ...f, host: e.target.value }))}
-                        />
-                        <input
-                            type="number"
-                            className="w-full px-2.5 py-2 border rounded text-sm"
-                            placeholder="端口"
-                            min={1}
-                            max={65535}
-                            value={proxyForm.port ?? ''}
-                            onChange={(e) => setProxyForm((f) => ({ ...f, port: parseInt(e.target.value, 10) || 0 }))}
-                        />
-                        <input
-                            className="w-full px-2.5 py-2 border rounded text-sm"
-                            placeholder="用户名（可选）"
-                            value={proxyForm.username ?? ''}
-                            onChange={(e) => setProxyForm((f) => ({ ...f, username: e.target.value }))}
-                        />
-                        <input
-                            type="password"
-                            className="w-full px-2.5 py-2 border rounded text-sm"
-                            placeholder="密码（可选）"
-                            value={proxyForm.password ?? ''}
-                            onChange={(e) => setProxyForm((f) => ({ ...f, password: e.target.value }))}
-                        />
-                        <div className="flex gap-2">
+        <div className="flex h-screen">
+            {/* 左侧边栏 */}
+            <aside className="w-52 border-r bg-muted/30 flex flex-col">
+                <div className="p-4">
+                    <h1 className="text-lg font-semibold">Argo Proxy</h1>
+                    <p className="text-xs text-muted-foreground mt-1">设置</p>
+                </div>
+                <Separator />
+                <nav className="flex-1 p-2 space-y-1">
+                    {SIDEBAR_ITEMS.map((item) => {
+                        const Icon = item.icon;
+                        return (
                             <button
+                                key={item.id}
                                 type="button"
-                                onClick={handleSaveProxy}
-                                className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                                onClick={() => setActiveSection(item.id)}
+                                className={cn(
+                                    'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                                    activeSection === item.id
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'hover:bg-accent hover:text-accent-foreground'
+                                )}
                             >
-                                保存
+                                <Icon className="h-4 w-4" />
+                                {item.label}
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setProxyForm(null);
-                                    setEditingProxyName(null);
-                                }}
-                                className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300"
-                            >
-                                取消
-                            </button>
+                        );
+                    })}
+                </nav>
+            </aside>
+
+            {/* 右侧内容区 */}
+            <main className="flex-1 overflow-auto p-6">
+                {activeSection === 'proxy' && (
+                    <div className="max-w-2xl space-y-6">
+                        <div>
+                            <h2 className="text-xl font-semibold">代理列表</h2>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                管理 HTTP/HTTPS/SOCKS 代理
+                            </p>
                         </div>
+
+                        <Card>
+                            <CardHeader className="pb-4">
+                                <CardTitle>已配置的代理</CardTitle>
+                                <CardDescription>
+                                    添加、编辑或删除代理服务器
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    {proxies.map((p) => (
+                                        <div
+                                            key={p.name}
+                                            className="flex items-center gap-3 py-3 px-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <span className="font-mono font-medium">{p.name}</span>
+                                                <span className="text-xs text-muted-foreground ml-2">
+                                                    {p.protocol} · {p.host}:{p.port}
+                                                </span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setEditingProxyName(p.name);
+                                                        setProxyForm({ ...p });
+                                                    }}
+                                                >
+                                                    <Pencil className="h-3.5 w-3.5" />
+                                                    编辑
+                                                </Button>
+                                                <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={async () => {
+                                                        if (confirm('确定删除该代理？')) {
+                                                            await setConfig(
+                                                                new Config({
+                                                                    ...config,
+                                                                    proxies: config.proxies.filter(
+                                                                        (x) => x.name !== p.name
+                                                                    ),
+                                                                })
+                                                            );
+                                                        }
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                    删除
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {proxies.length === 0 && (
+                                        <p className="text-sm text-muted-foreground py-6 text-center">
+                                            暂无代理，点击下方添加
+                                        </p>
+                                    )}
+                                </div>
+
+                                <Separator />
+
+                                {proxyForm ? (
+                                    <Card>
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-base">
+                                                {editingProxyName ? '编辑代理' : '添加代理'}
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="name">名称</Label>
+                                                <Input
+                                                    id="name"
+                                                    placeholder="例如: 公司代理"
+                                                    value={proxyForm.name ?? ''}
+                                                    onChange={(e) =>
+                                                        setProxyForm((f) => ({ ...f, name: e.target.value }))
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="protocol">协议</Label>
+                                                <Select
+                                                    value={proxyForm.protocol ?? 'http'}
+                                                    onValueChange={(v: string) =>
+                                                        setProxyForm((f) => ({
+                                                            ...f,
+                                                            protocol: v as Proxy['protocol'],
+                                                        }))
+                                                    }
+                                                >
+                                                    <SelectTrigger id="protocol">
+                                                        <SelectValue placeholder="选择协议" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="http">HTTP</SelectItem>
+                                                        <SelectItem value="https">HTTPS</SelectItem>
+                                                        <SelectItem value="socks">SOCKS</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="host">主机</Label>
+                                                <Input
+                                                    id="host"
+                                                    placeholder="127.0.0.1 或 proxy.example.com"
+                                                    value={proxyForm.host ?? ''}
+                                                    onChange={(e) =>
+                                                        setProxyForm((f) => ({ ...f, host: e.target.value }))
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="port">端口</Label>
+                                                <Input
+                                                    id="port"
+                                                    type="number"
+                                                    placeholder="8080"
+                                                    min={1}
+                                                    max={65535}
+                                                    value={proxyForm.port ?? ''}
+                                                    onChange={(e) =>
+                                                        setProxyForm((f) => ({
+                                                            ...f,
+                                                            port: parseInt(e.target.value, 10) || 0,
+                                                        }))
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="flex gap-2 pt-2">
+                                                <Button onClick={handleSaveProxy}>保存</Button>
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setProxyForm(null);
+                                                        setEditingProxyName(null);
+                                                    }}
+                                                >
+                                                    取消
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ) : (
+                                    <Button
+                                        variant="outline"
+                                        className="w-full"
+                                        onClick={() => {
+                                            setEditingProxyName(null);
+                                            setProxyForm({
+                                                name: '',
+                                                protocol: 'http',
+                                                host: '',
+                                                port: 0,
+                                            });
+                                        }}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        添加代理
+                                    </Button>
+                                )}
+                            </CardContent>
+                        </Card>
                     </div>
                 )}
-                <button
-                    type="button"
-                    onClick={() => {
-                        setEditingProxyName(null);
-                        setProxyForm({ name: '', protocol: 'http', host: '', port: 0 });
-                    }}
-                    className="mt-3 px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                >
-                    + 添加代理
-                </button>
-            </div>
+            </main>
         </div>
     );
 }
