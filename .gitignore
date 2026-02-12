@@ -207,7 +207,6 @@ marimo/_lsp/
 __marimo__/
 
 .idea/
-*.xml
 *.swp
 *.txt
 .DS_Store

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <remote_servers>
+        <cluster_3n>
+            <shard>
+                <replica>
+                    <host>clickhouse-1</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>clickhouse-2</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>clickhouse-3</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </cluster_3n>
+    </remote_servers>
+</clickhouse>

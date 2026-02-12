@@ -20,11 +20,11 @@ docker compose up -d
 
 ## 连接方式
 
-| 方式 | 说明 |
-|------|------|
-| **HTTP** | 浏览器或 `curl "http://localhost:8123/?query=SELECT 1"` |
+| 方式                  | 说明                                                                                                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HTTP**              | 浏览器或 `curl "http://localhost:8123/?query=SELECT 1"`                                                                                                                                              |
 | **clickhouse-client** | 同机安装 [ClickHouse 客户端](https://clickhouse.com/docs/en/integrations/sql-clients/clickhouse-client-local) 后：`clickhouse-client --host 127.0.0.1 --port 9000`（节点 2 用 9001，节点 3 用 9002） |
-| **GUI** | DBeaver、Tabix、DataGrip 等，连接类型选 ClickHouse，主机 `localhost`，HTTP 端口 8123/8124/8125 或 Native 端口 9000/9001/9002 |
+| **GUI**               | DBeaver、Tabix、DataGrip 等，连接类型选 ClickHouse，主机 `localhost`，HTTP 端口 8123/8124/8125 或 Native 端口 9000/9001/9002                                                                         |
 
 ## 验证集群
 

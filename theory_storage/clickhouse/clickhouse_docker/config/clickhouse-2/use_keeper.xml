@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- 仅连接 Keeper，不在此节点运行 Keeper -->
+<clickhouse>
+    <keeper_server>
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>clickhouse-1</hostname>
+                <port>9234</port>
+            </server>
+        </raft_configuration>
+    </keeper_server>
+</clickhouse>
