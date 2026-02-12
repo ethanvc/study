@@ -1,10 +1,12 @@
 # ClickHouse 集群：3 节点（1 分片 3 副本），测试用无持久化
 # 节点 1 同时跑 Keeper，节点 2/3 连接该 Keeper
+# mem_limit 避免多节点争内存被 OOM (exit 137)
 
 services:
   clickhouse-1:
     image: clickhouse/clickhouse-server:latest
     hostname: clickhouse-1
+    mem_limit: 1g
     ports:
       - "8123:8123"   # HTTP
       - "9000:9000"   # Native
@@ -26,6 +28,7 @@ services:
   clickhouse-2:
     image: clickhouse/clickhouse-server:latest
     hostname: clickhouse-2
+    mem_limit: 1g
     depends_on:
       clickhouse-1: { condition: service_healthy }
     ports:
@@ -48,6 +51,7 @@ services:
   clickhouse-3:
     image: clickhouse/clickhouse-server:latest
     hostname: clickhouse-3
+    mem_limit: 1g
     depends_on:
       clickhouse-1: { condition: service_healthy }
     ports:
