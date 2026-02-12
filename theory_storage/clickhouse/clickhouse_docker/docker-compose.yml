@@ -3,7 +3,7 @@
 
 services:
   clickhouse-1:
-    image: clickhouse/clickhouse-server:24.3
+    image: clickhouse/clickhouse-server:latest
     hostname: clickhouse-1
     ports:
       - "8123:8123"   # HTTP
@@ -12,8 +12,7 @@ services:
     volumes:
       - ./config/clickhouse-1:/etc/clickhouse-server/config.d
     environment:
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_SKIP_USER_SETUP: 1   # default 无密码，可从主机访问（仅测试用）
     ulimits:
       nofile:
         soft: 262144
@@ -25,7 +24,7 @@ services:
       retries: 3
 
   clickhouse-2:
-    image: clickhouse/clickhouse-server:24.3
+    image: clickhouse/clickhouse-server:latest
     hostname: clickhouse-2
     depends_on:
       clickhouse-1: { condition: service_healthy }
@@ -35,8 +34,7 @@ services:
     volumes:
       - ./config/clickhouse-2:/etc/clickhouse-server/config.d
     environment:
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_SKIP_USER_SETUP: 1   # default 无密码，可从主机访问（仅测试用）
     ulimits:
       nofile:
         soft: 262144
@@ -48,7 +46,7 @@ services:
       retries: 3
 
   clickhouse-3:
-    image: clickhouse/clickhouse-server:24.3
+    image: clickhouse/clickhouse-server:latest
     hostname: clickhouse-3
     depends_on:
       clickhouse-1: { condition: service_healthy }
@@ -58,8 +56,7 @@ services:
     volumes:
       - ./config/clickhouse-3:/etc/clickhouse-server/config.d
     environment:
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_SKIP_USER_SETUP: 1   # default 无密码，可从主机访问（仅测试用）
     ulimits:
       nofile:
         soft: 262144
