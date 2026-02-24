@@ -2,3 +2,8 @@
 argo_proxy/dist/
 node_modules/
 golangproj/dkit/cmd/dkit/main
+.DS_Store
+/*/target/debug/
+/*/target/.*
+/*/target/CACHEDIR.TAG
+.gemini/
