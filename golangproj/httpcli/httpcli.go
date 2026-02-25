@@ -3,7 +3,7 @@ package httpcli
 import (
 	"bytes"
 	"context"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
