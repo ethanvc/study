@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Config } from '../shared/types';
-import { useConfigStore } from '../shared/store';
+import { useProxyStore } from '../shared/store';
 import { MSG_TYPE_GET_HOST_LIST } from '../shared/messages';
 import EnableProxySwitch from './components/EnableProxySwitch';
 import HostListView from './components/HostListView';
@@ -13,7 +12,7 @@ export interface HostStatusItem {
 }
 
 export default function App() {
-    const { config, setConfig, loadConfig } = useConfigStore();
+    const { config, setEnabled, loadConfig } = useProxyStore();
     const [view, setView] = useState<'main' | 'host'>('main');
     const [currentPage, setCurrentPage] = useState<{ host: string; proxyName: string } | null>(null);
     const [currentPageError, setCurrentPageError] = useState(false);
@@ -21,7 +20,7 @@ export default function App() {
     const [hostListLoading, setHostListLoading] = useState(false);
 
     useEffect(() => {
-        loadConfig();
+        void loadConfig();
     }, [loadConfig]);
 
     useEffect(() => {
@@ -68,7 +67,10 @@ export default function App() {
     if (view === 'main') {
         return (
             <div className="p-3 bg-gray-100 min-w-[260px]">
-                <EnableProxySwitch enabled={config.enabled} onToggle={() => setConfig(new Config({ ...config, enabled: !config.enabled }))} />
+                <EnableProxySwitch
+                    enabled={config.enabled}
+                    onToggle={() => void setEnabled(!config.enabled)}
+                />
                 <button
                     type="button"
                     onClick={() => setView('host')}
