@@ -4,35 +4,35 @@
 
 @layer base {
     :root {
-        /* Dark theme — always on, no light/dark toggle */
-        --background: 285 2% 12%;
-        --foreground: 0 0% 95%;
+        /* Chrome-style light theme */
+        --background: 210 17% 98%;
+        --foreground: 220 4% 13%;
 
-        --card: 285 2% 16%;
-        --card-foreground: 0 0% 95%;
+        --card: 0 0% 100%;
+        --card-foreground: 220 4% 13%;
 
-        --popover: 285 2% 16%;
-        --popover-foreground: 0 0% 95%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 220 4% 13%;
 
-        /* Green accent */
-        --primary: 155 50% 55%;
-        --primary-foreground: 285 2% 12%;
+        /* Google Blue */
+        --primary: 217 79% 51%;
+        --primary-foreground: 0 0% 100%;
 
-        --secondary: 285 2% 21%;
-        --secondary-foreground: 0 0% 90%;
+        --secondary: 210 11% 96%;
+        --secondary-foreground: 220 4% 13%;
 
-        --muted: 285 2% 21%;
-        --muted-foreground: 0 0% 57%;
+        --muted: 210 11% 96%;
+        --muted-foreground: 213 5% 39%;
 
-        --accent: 155 50% 55%;
-        --accent-foreground: 285 2% 12%;
+        --accent: 217 79% 51%;
+        --accent-foreground: 0 0% 100%;
 
-        --destructive: 25 55% 45%;
-        --destructive-foreground: 0 0% 95%;
+        --destructive: 4 66% 50%;
+        --destructive-foreground: 0 0% 100%;
 
-        --border: 285 2% 27%;
-        --input: 285 2% 21%;
-        --ring: 155 50% 55%;
+        --border: 225 11% 88%;
+        --input: 225 11% 88%;
+        --ring: 217 79% 51%;
 
         --radius: 0.5rem;
     }
@@ -46,4 +46,5 @@ body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     min-height: 100vh;
+    font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }

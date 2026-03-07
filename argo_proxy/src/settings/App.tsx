@@ -23,7 +23,7 @@ export default function App() {
     return (
         <div className="flex h-screen overflow-hidden bg-background text-foreground">
             {/* Sidebar */}
-            <aside className="w-56 shrink-0 flex flex-col border-r border-border bg-[hsl(285,2%,14%)]">
+            <aside className="w-56 shrink-0 flex flex-col border-r border-border bg-secondary">
                 {/* Header */}
                 <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20">
