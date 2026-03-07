@@ -69,7 +69,6 @@ interface StoredConfig {
 
 const CONFIG_KEY = 'config';
 const RULES_LIMIT = 50;
-const GATEWAY_BASE = 'https://argo-proxy-gateway.example.com/fetch';
 
 async function getStoredConfig(): Promise<StoredConfig> {
     const out = await chrome.storage.local.get([CONFIG_KEY]);
@@ -97,7 +96,132 @@ async function getStoredConfig(): Promise<StoredConfig> {
     };
 }
 
-// ---- DNR Rule Building ----
+// ---- PAC Script Generation ----
+//
+// The PAC (Proxy Auto-Config) script is a JavaScript function evaluated by
+// the browser for every request. It returns a proxy server string like
+// "PROXY host:port", "SOCKS5 host:port", or "DIRECT" — without modifying
+// the URL in any way.
+
+function proxyToString(proxy: Proxy): string {
+    if (proxy.type === 'socks5') {
+        return `SOCKS5 ${proxy.host}:${proxy.port}`;
+    }
+    // http and https proxies both use the HTTP CONNECT tunnel
+    return `PROXY ${proxy.host}:${proxy.port}`;
+}
+
+function escapeForPacString(s: string): string {
+    return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function buildPacScript(
+    rules: Rule[],
+    proxies: Proxy[],
+    defaultAction: RuleAction
+): string {
+    const activeRules = rules
+        .filter((r) => r.enabled && r.action.type !== 'block')
+        .slice(0, RULES_LIMIT);
+
+    const lines: string[] = ['function FindProxyForURL(url, host) {'];
+    // Extract path once for path_* rules
+    lines.push('    var path = url.replace(/^[a-z]+:\\/\\/[^\\/]+/, "");');
+
+    for (const rule of activeRules) {
+        const { action } = rule;
+        let proxyStr: string;
+        if (action.type === 'direct') {
+            proxyStr = 'DIRECT';
+        } else if (action.type === 'proxy') {
+            const proxy = proxies.find((p) => p.id === action.proxyId);
+            if (!proxy) continue;
+            proxyStr = proxyToString(proxy);
+        } else {
+            continue;
+        }
+
+        let condition: string;
+        const v = escapeForPacString(rule.value);
+        try {
+            switch (rule.type) {
+                case 'host_contains':
+                    condition = `host.indexOf("${v}") !== -1`;
+                    break;
+                case 'host_regex':
+                    // Validate regex before embedding
+                    new RegExp(rule.value);
+                    condition = `/${rule.value}/.test(host)`;
+                    break;
+                case 'url_contains':
+                    condition = `url.indexOf("${v}") !== -1`;
+                    break;
+                case 'url_regex':
+                    new RegExp(rule.value);
+                    condition = `/${rule.value}/.test(url)`;
+                    break;
+                case 'path_contains':
+                    condition = `path.indexOf("${v}") !== -1`;
+                    break;
+                case 'path_regex':
+                    new RegExp(rule.value);
+                    condition = `/${rule.value}/.test(path)`;
+                    break;
+                default:
+                    continue;
+            }
+        } catch {
+            // Invalid regex — skip this rule
+            continue;
+        }
+
+        lines.push(`    if (${condition}) return "${proxyStr}";`);
+    }
+
+    // Default action
+    let defaultStr = 'DIRECT';
+    if (defaultAction.type === 'proxy') {
+        const proxy = proxies.find((p) => p.id === defaultAction.proxyId);
+        if (proxy) defaultStr = proxyToString(proxy);
+    }
+    // For default 'block': use a loopback address that refuses connections,
+    // which causes an immediate network error without any redirect.
+    if (defaultAction.type === 'block') {
+        defaultStr = 'PROXY 127.0.0.1:0';
+    }
+
+    lines.push(`    return "${defaultStr}";`);
+    lines.push('}');
+    return lines.join('\n');
+}
+
+// ---- chrome.proxy helpers (callback → Promise) ----
+
+function setChromeProxy(config: chrome.proxy.ProxyConfig): Promise<void> {
+    return new Promise((resolve, reject) => {
+        chrome.proxy.settings.set({ value: config, scope: 'regular' }, () => {
+            if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
+function clearChromeProxy(): Promise<void> {
+    return new Promise((resolve, reject) => {
+        chrome.proxy.settings.clear({ scope: 'regular' }, () => {
+            if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
+// ---- DNR helpers (block rules only) ----
 
 const DNR_RESOURCE_TYPES = [
     'main_frame',
@@ -139,83 +263,58 @@ function ruleToRegexFilter(rule: Rule): string {
     }
 }
 
-function buildDnrRules(
+function buildDnrBlockRules(
     enabled: boolean,
-    rules: Rule[],
-    proxies: Proxy[]
+    rules: Rule[]
 ): chrome.declarativeNetRequest.Rule[] {
-    if (!enabled || !rules.length) return [];
-
-    const activeRules = rules.filter((r) => r.enabled).slice(0, RULES_LIMIT);
-
-    const dnrRules: chrome.declarativeNetRequest.Rule[] = [];
-    let dnrId = 1;
-
-    for (const rule of activeRules) {
-        let regexFilter: string;
-        try {
-            regexFilter = ruleToRegexFilter(rule);
-        } catch {
-            continue;
-        }
-
-        if (rule.action.type === 'block') {
-            dnrRules.push({
-                id: dnrId++,
-                priority: 1,
-                action: { type: 'block' },
-                condition: {
-                    regexFilter,
-                    resourceTypes: [...DNR_RESOURCE_TYPES],
-                },
-            } as chrome.declarativeNetRequest.Rule);
-        } else if (rule.action.type === 'proxy') {
-            const proxy = proxies.find((p) => p.id === rule.action.proxyId);
-            if (!proxy) continue;
-            dnrRules.push({
-                id: dnrId++,
-                priority: 1,
-                action: {
-                    type: 'redirect',
-                    redirect: {
-                        regexSubstitution:
-                            GATEWAY_BASE +
-                            '?url=\\0&proxyId=' +
-                            encodeURIComponent(proxy.id.toString()),
-                    },
-                },
-                condition: {
-                    regexFilter,
-                    resourceTypes: [...DNR_RESOURCE_TYPES],
-                },
-            } as chrome.declarativeNetRequest.Rule);
-        }
-        // 'direct' rules: no DNR rule needed
-    }
-
-    return dnrRules;
+    if (!enabled) return [];
+    return rules
+        .filter((r) => r.enabled && r.action.type === 'block')
+        .slice(0, RULES_LIMIT)
+        .map((rule, index) => ({
+            id: index + 1,
+            priority: 1,
+            action: { type: 'block' as const },
+            condition: {
+                regexFilter: ruleToRegexFilter(rule),
+                resourceTypes: [...DNR_RESOURCE_TYPES],
+            },
+        }));
 }
 
-async function applyDnrRules(): Promise<void> {
+async function applyDnrBlockRules(enabled: boolean, rules: Rule[]): Promise<void> {
+    const blockRules = buildDnrBlockRules(enabled, rules);
+    const existing = await chrome.declarativeNetRequest.getDynamicRules();
+    await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: existing.map((r) => r.id),
+        addRules: blockRules,
+    });
+}
+
+// ---- Main apply function ----
+
+async function applyProxySettings(): Promise<void> {
     try {
         const cfg = await getStoredConfig();
         const activeProfile = cfg.profiles.find((p) => p.id === cfg.activeProfileId);
-        const rules = activeProfile?.rules ?? [];
 
-        const dynamicRules = buildDnrRules(cfg.enabled, rules, cfg.proxies);
-        const existing = await chrome.declarativeNetRequest.getDynamicRules();
-
-        await chrome.declarativeNetRequest.updateDynamicRules({
-            removeRuleIds: existing.map((r) => r.id),
-        });
-
-        if (dynamicRules.length > 0) {
-            await chrome.declarativeNetRequest.updateDynamicRules({
-                addRules: dynamicRules,
+        if (!cfg.enabled || !activeProfile) {
+            await clearChromeProxy();
+        } else {
+            const pacScript = buildPacScript(
+                activeProfile.rules,
+                cfg.proxies,
+                activeProfile.defaultAction
+            );
+            await setChromeProxy({
+                mode: 'pac_script',
+                pacScript: { data: pacScript },
             });
         }
+
+        await applyDnrBlockRules(cfg.enabled, activeProfile?.rules ?? []);
     } catch (e) {
-        console.error('[Argo Proxy] applyDnrRules', e);
+        console.error('[Argo Proxy] applyProxySettings', e);
     }
 }
 
@@ -225,8 +324,8 @@ chrome.storage.onChanged.addListener(
     (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
         if (areaName !== 'local') return;
         if (Object.keys(changes).includes(CONFIG_KEY)) {
-            applyDnrRules().catch((e) =>
-                console.error('[Argo Proxy] storage.onChanged -> applyDnrRules', e)
+            applyProxySettings().catch((e) =>
+                console.error('[Argo Proxy] storage.onChanged -> applyProxySettings', e)
             );
         }
     }
@@ -338,14 +437,13 @@ chrome.runtime.onMessage.addListener(
 chrome.runtime.onInstalled.addListener(() => {
     getStoredConfig()
         .then(async (cfg) => {
-            // Already initialized if we have a stored config
             const raw = await chrome.storage.local.get([CONFIG_KEY]);
             if (!raw[CONFIG_KEY]) {
                 await chrome.storage.local.set({ [CONFIG_KEY]: cfg });
             }
-            void applyDnrRules();
+            void applyProxySettings();
         })
         .catch((e) => console.error('[Argo Proxy] onInstalled', e));
 });
 
-void applyDnrRules();
+void applyProxySettings();

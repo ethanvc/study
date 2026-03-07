@@ -20,6 +20,7 @@
   },
   "permissions": [
     "storage",
+    "proxy",
     "declarativeNetRequest",
     "tabs",
     "webRequest"
