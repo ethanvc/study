@@ -66,7 +66,7 @@ export default function App() {
 
     if (view === 'main') {
         return (
-            <div className="p-3 bg-gray-100 min-w-[260px]">
+            <div className="p-3 bg-background min-w-[260px]">
                 <EnableProxySwitch
                     enabled={config.enabled}
                     onToggle={() => void setEnabled(!config.enabled)}
@@ -74,18 +74,18 @@ export default function App() {
                 <button
                     type="button"
                     onClick={() => setView('host')}
-                    className="flex items-center justify-between w-full gap-2 px-3 py-2.5 mb-1 text-left bg-white rounded-lg hover:bg-gray-100 text-sm font-medium"
+                    className="flex items-center justify-between w-full gap-2 px-3 py-2.5 mb-1 text-left bg-card border border-border rounded-lg hover:bg-secondary text-sm font-medium"
                 >
                     <span>Host 列表</span>
-                    <span className={`text-xs ${!config.enabled ? 'text-orange-600' : 'text-gray-500'}`}>
+                    <span className={`text-xs ${!config.enabled ? 'text-destructive' : 'text-muted-foreground'}`}>
                         {config.enabled ? '已启用' : '已暂停'}
                     </span>
-                    <span className="text-gray-400">›</span>
+                    <span className="text-muted-foreground">›</span>
                 </button>
                 <button
                     type="button"
                     onClick={openSettings}
-                    className="flex items-center justify-between w-full px-3 py-2.5 text-left bg-white rounded-lg hover:bg-gray-100 text-sm font-medium"
+                    className="flex items-center justify-between w-full px-3 py-2.5 text-left bg-card border border-border rounded-lg hover:bg-secondary text-sm font-medium"
                 >
                     设置
                 </button>

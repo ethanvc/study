@@ -32,12 +32,12 @@ function statusLabel(status: string): string {
 function statusClass(status: string): string {
     switch (status) {
         case 'ok':
-            return 'text-green-600';
+            return 'text-primary';
         case 'failed':
         case 'timeout':
-            return 'text-red-600';
+            return 'text-destructive';
         default:
-            return 'text-gray-500';
+            return 'text-muted-foreground';
     }
 }
 
@@ -49,12 +49,12 @@ export default function HostListView({
     onBack,
 }: HostListViewProps) {
     return (
-        <div className="p-3 bg-gray-100 min-w-[340px]">
+        <div className="p-3 bg-background min-w-[340px]">
             <div className="flex items-center gap-2 mb-3">
                 <button
                     type="button"
                     onClick={onBack}
-                    className="flex items-center justify-center w-7 h-7 bg-white rounded-md hover:bg-gray-100 text-gray-600"
+                    className="flex items-center justify-center w-7 h-7 bg-card border border-border rounded-md hover:bg-secondary text-foreground"
                     aria-label="返回"
                 >
                     ‹
@@ -63,33 +63,33 @@ export default function HostListView({
             </div>
 
             {currentPageError && (
-                <div className="p-3 mb-3 bg-white rounded-lg text-sm">
-                    <div className="text-gray-500 text-xs">当前页面</div>
-                    <span className="text-gray-700">无法获取当前页面</span>
+                <div className="p-3 mb-3 bg-card border border-border rounded-lg text-sm">
+                    <div className="text-muted-foreground text-xs">当前页面</div>
+                    <span className="text-foreground">无法获取当前页面</span>
                 </div>
             )}
             {currentPage && !currentPageError && (
-                <div className="p-3 mb-3 bg-white rounded-lg text-sm">
-                    <div className="text-gray-500 text-xs">当前页面</div>
-                    <span className="font-mono text-gray-800">{currentPage.host}</span>
-                    <span className="text-blue-600 ml-1">→ {currentPage.proxyName}</span>
+                <div className="p-3 mb-3 bg-card border border-border rounded-lg text-sm">
+                    <div className="text-muted-foreground text-xs">当前页面</div>
+                    <span className="font-mono text-foreground">{currentPage.host}</span>
+                    <span className="text-primary ml-1">→ {currentPage.proxyName}</span>
                 </div>
             )}
 
             <div className="mt-2">
-                <div className="text-gray-500 text-xs mb-1">本页 Host 访问状态</div>
+                <div className="text-muted-foreground text-xs mb-1">本页 Host 访问状态</div>
                 {hostListLoading ? (
-                    <div className="p-3 bg-white rounded-lg text-sm text-gray-500">加载中...</div>
+                    <div className="p-3 bg-card border border-border rounded-lg text-sm text-muted-foreground">加载中...</div>
                 ) : hostList.length === 0 ? (
-                    <div className="p-3 bg-white rounded-lg text-sm text-gray-500">暂无记录</div>
+                    <div className="p-3 bg-card border border-border rounded-lg text-sm text-muted-foreground">暂无记录</div>
                 ) : (
                     <ul className="space-y-1">
                         {hostList.map((item) => (
                             <li
                                 key={item.host}
-                                className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg text-sm"
+                                className="flex items-center justify-between gap-2 p-2 bg-card border border-border rounded-lg text-sm"
                             >
-                                <span className="font-mono text-gray-800 truncate flex-1 min-w-0">
+                                <span className="font-mono text-foreground truncate flex-1 min-w-0">
                                     {item.host}
                                 </span>
                                 <span className={`shrink-0 text-xs ${statusClass(item.status)}`}>

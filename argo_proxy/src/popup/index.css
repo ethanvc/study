@@ -2,8 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+    :root {
+        --background: 285 2% 12%;
+        --foreground: 0 0% 95%;
+
+        --card: 285 2% 16%;
+        --card-foreground: 0 0% 95%;
+
+        --popover: 285 2% 16%;
+        --popover-foreground: 0 0% 95%;
+
+        --primary: 155 50% 55%;
+        --primary-foreground: 285 2% 12%;
+
+        --secondary: 285 2% 21%;
+        --secondary-foreground: 0 0% 90%;
+
+        --muted: 285 2% 21%;
+        --muted-foreground: 0 0% 57%;
+
+        --accent: 155 50% 55%;
+        --accent-foreground: 285 2% 12%;
+
+        --destructive: 25 55% 45%;
+        --destructive-foreground: 0 0% 95%;
+
+        --border: 285 2% 27%;
+        --input: 285 2% 21%;
+        --ring: 155 50% 55%;
+
+        --radius: 0.5rem;
+    }
+}
+
+* {
+    border-color: hsl(var(--border));
+}
+
 body {
-  min-width: 260px;
-  max-width: 380px;
-  min-height: 120px;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    min-width: 260px;
+    max-width: 380px;
+    min-height: 120px;
 }
