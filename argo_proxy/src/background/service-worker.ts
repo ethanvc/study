@@ -102,6 +102,41 @@ async function getStoredConfig(): Promise<StoredConfig> {
 // the browser for every request. It returns a proxy server string like
 // "PROXY host:port", "SOCKS5 host:port", or "DIRECT" — without modifying
 // the URL in any way.
+//
+// Strategy: serialize rules + default into JSON data at the top of the script,
+// then append a static, fully readable PAC function that operates on that data.
+
+// The complete PAC logic as a readable static string.
+// RULES and DEFAULT are injected as variables before this function.
+const PAC_FUNCTION = `
+function matchRule(rule, url, host, path) {
+    switch (rule.type) {
+        case 'host_contains': return host.indexOf(rule.value) !== -1;
+        case 'host_regex':    return new RegExp(rule.value).test(host);
+        case 'url_contains':  return url.indexOf(rule.value) !== -1;
+        case 'url_regex':     return new RegExp(rule.value).test(url);
+        case 'path_contains': return path.indexOf(rule.value) !== -1;
+        case 'path_regex':    return new RegExp(rule.value).test(path);
+        default:              return false;
+    }
+}
+
+function FindProxyForURL(url, host) {
+    var path = url.replace(/^[a-z]+:\\/\\/[^\\/]+/, '');
+    for (var i = 0; i < RULES.length; i++) {
+        try {
+            if (matchRule(RULES[i], url, host, path)) return RULES[i].proxy;
+        } catch (e) {}
+    }
+    return DEFAULT;
+}
+`.trimStart();
+
+interface PacRule {
+    type: RuleType;
+    value: string;
+    proxy: string;
+}
 
 function proxyToString(proxy: Proxy): string {
     if (proxy.type === 'socks5') {
@@ -111,24 +146,14 @@ function proxyToString(proxy: Proxy): string {
     return `PROXY ${proxy.host}:${proxy.port}`;
 }
 
-function escapeForPacString(s: string): string {
-    return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
 function buildPacScript(
     rules: Rule[],
     proxies: Proxy[],
     defaultAction: RuleAction
 ): string {
-    const activeRules = rules
-        .filter((r) => r.enabled && r.action.type !== 'block')
-        .slice(0, RULES_LIMIT);
-
-    const lines: string[] = ['function FindProxyForURL(url, host) {'];
-    // Extract path once for path_* rules
-    lines.push('    var path = url.replace(/^[a-z]+:\\/\\/[^\\/]+/, "");');
-
-    for (const rule of activeRules) {
+    // Build the rule data: pre-resolve proxy strings, skip block/invalid rules
+    const pacRules: PacRule[] = [];
+    for (const rule of rules.filter((r) => r.enabled && r.action.type !== 'block').slice(0, RULES_LIMIT)) {
         const { action } = rule;
         let proxyStr: string;
         if (action.type === 'direct') {
@@ -140,59 +165,28 @@ function buildPacScript(
         } else {
             continue;
         }
-
-        let condition: string;
-        const v = escapeForPacString(rule.value);
-        try {
-            switch (rule.type) {
-                case 'host_contains':
-                    condition = `host.indexOf("${v}") !== -1`;
-                    break;
-                case 'host_regex':
-                    // Validate regex before embedding
-                    new RegExp(rule.value);
-                    condition = `/${rule.value}/.test(host)`;
-                    break;
-                case 'url_contains':
-                    condition = `url.indexOf("${v}") !== -1`;
-                    break;
-                case 'url_regex':
-                    new RegExp(rule.value);
-                    condition = `/${rule.value}/.test(url)`;
-                    break;
-                case 'path_contains':
-                    condition = `path.indexOf("${v}") !== -1`;
-                    break;
-                case 'path_regex':
-                    new RegExp(rule.value);
-                    condition = `/${rule.value}/.test(path)`;
-                    break;
-                default:
-                    continue;
-            }
-        } catch {
-            // Invalid regex — skip this rule
-            continue;
+        // Validate regex rules upfront so the PAC function never throws on them
+        if (rule.type.endsWith('_regex')) {
+            try { new RegExp(rule.value); } catch { continue; }
         }
-
-        lines.push(`    if (${condition}) return "${proxyStr}";`);
+        pacRules.push({ type: rule.type, value: rule.value, proxy: proxyStr });
     }
 
-    // Default action
+    // Resolve the default action
     let defaultStr = 'DIRECT';
     if (defaultAction.type === 'proxy') {
         const proxy = proxies.find((p) => p.id === defaultAction.proxyId);
         if (proxy) defaultStr = proxyToString(proxy);
-    }
-    // For default 'block': use a loopback address that refuses connections,
-    // which causes an immediate network error without any redirect.
-    if (defaultAction.type === 'block') {
+    } else if (defaultAction.type === 'block') {
+        // No native block in PAC; use a loopback address that immediately refuses
         defaultStr = 'PROXY 127.0.0.1:0';
     }
 
-    lines.push(`    return "${defaultStr}";`);
-    lines.push('}');
-    return lines.join('\n');
+    return (
+        `var RULES = ${JSON.stringify(pacRules)};\n` +
+        `var DEFAULT = ${JSON.stringify(defaultStr)};\n\n` +
+        PAC_FUNCTION
+    );
 }
 
 // ---- chrome.proxy helpers (callback → Promise) ----
@@ -279,7 +273,7 @@ function buildDnrBlockRules(
                 regexFilter: ruleToRegexFilter(rule),
                 resourceTypes: [...DNR_RESOURCE_TYPES],
             },
-        }));
+        } as chrome.declarativeNetRequest.Rule));
 }
 
 async function applyDnrBlockRules(enabled: boolean, rules: Rule[]): Promise<void> {
