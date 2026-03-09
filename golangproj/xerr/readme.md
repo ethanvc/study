@@ -15,13 +15,17 @@
 1. path中包含参数。
 2. path是统一接入API，需要根据header或特定的参数进行分发。此时仅上报path统计意义不大。
 
-### 案例 不同环境域名不同，希望一次配置都生效
-http://api.test.xx.com/api/get
-http://api.xx.com/api/get
+### 案例：不同环境域名不同，希望一次配置都生效
+https://api.test.xx.com/api/get
+https://api.xx.com/api/get
 
-### 案例 路径包含参数
-http://api.xx.com/api/get/{student-id}
-http://api.xx.com/api/get/{student-id}/photos/{*photo-path}
+### 案例：路径包含参数
+https://api.xx.com/api/get/{student-id}
+https://api.xx.com/api/get/{student-id}/photos/{*photo-path}
+
+### 案例：统一接入api
+https://openapi.alipay.com/gateway.do
+通过body中的method标记是调用的哪个方法。
 
 解决思路：
 1. 使用radix tree提取模式上报。无法获取的，就告警然用户添加。
