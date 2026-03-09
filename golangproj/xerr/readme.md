@@ -15,19 +15,19 @@
 1. path中包含参数。
 2. path是统一接入API，需要根据header或特定的参数进行分发。此时仅上报path统计意义不大。
 
-### 案例：不同环境域名不同，希望一次配置都生效
+### 场景：不同环境域名不同，希望一次配置都生效
 https://api.test.xx.com/api/get
 https://api.xx.com/api/get
 
-### 案例：路径包含参数
+### 场景：路径包含参数
 https://api.xx.com/api/get/{student-id}
 https://api.xx.com/api/get/{student-id}/photos/{*photo-path}
 
-### 案例：统一接入api
+### 场景：统一接入api
 https://openapi.alipay.com/gateway.do
 通过body中的method标记是调用的哪个方法。
 
-解决思路：
+### 解决思路：
 1. 使用radix tree提取模式上报。无法获取的，就告警然用户添加。
 2. 这种情况不紧急，可以在代码中设置上报的method。随版本发布。
 3. 采用代码中处理，好处是运维方便。可以抽取到一个仓库，这样可以复用规则。
