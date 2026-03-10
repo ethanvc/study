@@ -103,3 +103,7 @@ func (e *Error) Error() string {
 	}
 	return e.GetReportEvent() + ";" + e.Msg
 }
+
+func (e *Error) ReportAndLog() *Error {
+	return e
+}
