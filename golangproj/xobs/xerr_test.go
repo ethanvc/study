@@ -2,6 +2,7 @@ package xobs
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,10 +20,19 @@ func TestError_Usage(t *testing.T) {
 	require.Equal(t, "3", err.GetMsg())
 }
 
-func ExampleError_ReportAndLog() {
-	// report
-	f := func(ctx context.Context, req int) (int, error) {
-		return 0, New(codes.Unimplemented, "FunctionNotImplemented").ReportAndLog("req", req)
+func Test_ReportAndLog(t *testing.T) {
+	f := func(ctx context.Context, req string) (int, error) {
+		type Abc struct {
+			A string
+		}
+		var objReq Abc
+		err := json.Unmarshal([]byte(req), &objReq)
+		if err != nil {
+			// case: will report and log in middleware.
+			return 0, New(codes.InvalidArgument, "ArgumentNotValidJson").SetMsg(err.Error())
+		}
+		return 0, nil
 	}
-	_, _ = f(context.Background(), 1)
+	_, err := f(context.Background(), "")
+	require.Equal(t, codes.InvalidArgument, Code(err))
 }
