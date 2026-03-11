@@ -1,4 +1,4 @@
-package xerr
+package xobs
 
 import (
 	"errors"

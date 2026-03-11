@@ -1,4 +1,4 @@
-package xerr
+package xobs
 
 import (
 	"bytes"
@@ -104,6 +104,6 @@ func (e *Error) Error() string {
 	return e.GetReportEvent() + ";" + e.Msg
 }
 
-func (e *Error) ReportAndLog() *Error {
+func (e *Error) ReportAndLog(args ...any) *Error {
 	return e
 }

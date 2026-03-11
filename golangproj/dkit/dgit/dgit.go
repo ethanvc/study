@@ -7,14 +7,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ethanvc/study/golangproj/xerr"
+	"github.com/ethanvc/study/golangproj/xobs"
 	"google.golang.org/grpc/codes"
 )
 
 func GetCurrentBranchName(ctx context.Context) (string, error) {
 	buf, code, _, err := runCommand(ctx, "git", "branch", "--show-current")
 	if err != nil || code != 0 {
-		return "", xerr.New(codes.Unknown, "").SetMsgf("code:%v, err:%v, content:%s", code, err, buf)
+		return "", xobs.New(codes.Unknown, "").SetMsgf("code:%v, err:%v, content:%s", code, err, buf)
 	}
 	return strings.TrimSpace(buf), nil
 }
@@ -22,7 +22,7 @@ func GetCurrentBranchName(ctx context.Context) (string, error) {
 func ListAllRemoteBranches(ctx context.Context) ([]string, error) {
 	buf, code, cmdLine, err := runCommand(ctx, "git", "branch", "-r")
 	if err != nil {
-		return nil, xerr.New(codes.Unknown, "").SetMsgf("code: %v, err: %v, cmd line: %s, content: %s",
+		return nil, xobs.New(codes.Unknown, "").SetMsgf("code: %v, err: %v, cmd line: %s, content: %s",
 			code, err, cmdLine, buf)
 	}
 	branches := splitStringByNewLine(buf)
@@ -41,7 +41,7 @@ func ListMergedBranches(c context.Context, targetBranch string) ([]string, error
 	buf, code, cmdLine, err := runCommand(c, "git", "branch", "--merged",
 		targetBranch, `--format=%(refname:short)`)
 	if err != nil {
-		return nil, xerr.New(codes.Unknown, "").SetMsgf("code: %v, err: %v, cmd line: %s, content: %s",
+		return nil, xobs.New(codes.Unknown, "").SetMsgf("code: %v, err: %v, cmd line: %s, content: %s",
 			code, err, cmdLine, buf)
 	}
 	return splitStringByNewLine(buf), nil
