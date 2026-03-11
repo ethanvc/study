@@ -20,7 +20,7 @@ func TestError_Usage(t *testing.T) {
 	require.Equal(t, "3", err.GetMsg())
 }
 
-func Test_ReportAndLog(t *testing.T) {
+func Test_Case1(t *testing.T) {
 	f := func(ctx context.Context, req string) (int, error) {
 		type Abc struct {
 			A string
