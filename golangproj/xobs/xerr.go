@@ -107,3 +107,5 @@ func (e *Error) Error() string {
 func (e *Error) ReportAndLog(args ...any) *Error {
 	return e
 }
+
+var errorLog = Log

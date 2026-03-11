@@ -22,7 +22,7 @@ func TestError_Usage(t *testing.T) {
 func ExampleError_ReportAndLog() {
 	// report
 	f := func(ctx context.Context, req int) (int, error) {
-		return 0, New(codes.Unimplemented, "FunctionNotImplemented").ReportAndLog()
+		return 0, New(codes.Unimplemented, "FunctionNotImplemented").ReportAndLog("req", req)
 	}
 	_, _ = f(context.Background(), 1)
 }
