@@ -116,7 +116,7 @@ func (e *Error) clone() *Error {
 	return newErr
 }
 
-var errorLog = Log
+var errorLog = LogRaw
 
 func Code(err error) codes.Code {
 	if err == nil {
