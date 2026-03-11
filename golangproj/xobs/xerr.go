@@ -2,6 +2,7 @@ package xobs
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"google.golang.org/grpc/codes"
@@ -108,4 +109,53 @@ func (e *Error) ReportAndLog(args ...any) *Error {
 	return e
 }
 
+func (e *Error) clone() *Error {
+	newErr := New(e.Code, "").SetMsg(e.Msg)
+	newErr.Event = e.Event[:len(e.Event):len(e.Event)]
+	newErr.Details = e.Details[:len(e.Details):len(e.Details)]
+	return newErr
+}
+
 var errorLog = Log
+
+func Code(err error) codes.Code {
+	if err == nil {
+		return codes.OK
+	}
+	var realErr *Error
+	if errors.As(err, &realErr) {
+		return realErr.GetCode()
+	}
+	return codes.Unknown
+}
+
+func BlockBusinessErr(err error) error {
+	realErr, ok := err.(*Error)
+	if !ok {
+		return err
+	}
+	if realErr == nil {
+		return nil
+	}
+	switch realErr.GetCode() {
+	case codes.Unknown, codes.Internal, codes.DeadlineExceeded, codes.Aborted,
+		codes.Unimplemented, codes.Unavailable, codes.DataLoss:
+		return err
+	default:
+		oldCode := realErr.GetCode()
+		realErr.Code = codes.Internal
+		realErr.AppendKvEvent("BlockedCode", oldCode.String())
+		return realErr
+	}
+}
+
+func Convert(err error) *Error {
+	if err == nil {
+		return New(codes.OK, "")
+	}
+	realErr, ok := err.(*Error)
+	if ok {
+		return realErr
+	}
+	return New(codes.Unknown, "UnknownErr").SetMsg(err.Error())
+}
