@@ -142,10 +142,10 @@ func BlockBusinessErr(err error) error {
 		codes.Unimplemented, codes.Unavailable, codes.DataLoss:
 		return err
 	default:
-		oldCode := realErr.GetCode()
-		realErr.Code = codes.Internal
-		realErr.AppendKvEvent("BlockedCode", oldCode.String())
-		return realErr
+		newErr := realErr.clone()
+		newErr.AppendKvEvent("BlockedCode", realErr.GetCode().String())
+		newErr.Code = codes.Internal
+		return newErr
 	}
 }
 
