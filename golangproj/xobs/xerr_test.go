@@ -45,7 +45,7 @@ func Test_Case(t *testing.T) {
 		f := func(ctx context.Context) error {
 			err := errors.New("some error")
 			if err != nil {
-
+				LogReportErr(ctx, "keyOperationFailedButDowngraded", "err", err)
 			}
 			return nil
 		}
