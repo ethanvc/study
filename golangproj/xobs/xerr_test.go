@@ -58,6 +58,6 @@ func Test_Case(t *testing.T) {
 		err := errors.New("some error")
 		// implementation will add method and timecost in the log.
 		LogAccess(context.Background(), err, "req", "resp", "req_header", "header")
-		ReportAccess(context.Background(), err, "lavel1", "label1value")
+		ReportAccess(context.Background(), err, "label1", "label1value")
 	}
 }
