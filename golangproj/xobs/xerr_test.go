@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -54,7 +53,6 @@ func Test_Case(t *testing.T) {
 	}
 	{
 		// case: middleware use this to print access log and do monitor report.
-		method = "GET /api/get"
 		// it's business's responsibility to add more content to print in log.
 		// but how to add more report labels?
 		err := errors.New("some error")
