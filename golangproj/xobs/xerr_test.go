@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -55,9 +56,11 @@ func Test_Case(t *testing.T) {
 		// case: middleware use this to print access log and do monitor report.
 		// it's business's responsibility to add more content to print in log.
 		// but how to add more report labels?
+		ctx := context.Background()
+		var req, resp any
+		var reqHeader http.Header
 		err := errors.New("some error")
 		// implementation will add method and timecost in the log.
-		LogAccess(context.Background(), err, "req", "resp", "req_header", "header")
-		ReportAccess(context.Background(), err, "label1", "label1value")
+		GetObsContext(ctx).ReportLogAccess(err, req, resp, nil, "req_header", reqHeader)
 	}
 }
