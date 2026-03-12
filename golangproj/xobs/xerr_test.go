@@ -42,6 +42,27 @@ func Test_Case(t *testing.T) {
 	}
 
 	{
+		// add something to print in access log.
+		ctx := context.Background()
+		GetObsContext(ctx).SetAttr("http.method", "POST")
+	}
+
+	{
+		// log and return error
+		f := func(ctx context.Context) (int, error) {
+			var req, resp any
+			err := errors.New("internal error")
+			if err != nil {
+				// will decide log level internally.
+				return 0, New(codes.Unknown, "CallSvrAErr").SetMsg(err.Error()).
+					LogReport(ctx, "req", req, "resp", resp)
+			}
+			return 0, nil
+		}
+		_, _ = f(context.Background())
+	}
+
+	{
 		// case: log and report in-place, but the error can downgrade.
 		f := func(ctx context.Context) error {
 			err := errors.New("some error")

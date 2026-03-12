@@ -2,6 +2,7 @@ package xobs
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 
@@ -105,7 +106,7 @@ func (e *Error) Error() string {
 	return e.GetReportEvent() + ";" + e.Msg
 }
 
-func (e *Error) ReportAndLog(args ...any) *Error {
+func (e *Error) LogReport(ctx context.Context, args ...any) *Error {
 	return e
 }
 
@@ -115,8 +116,6 @@ func (e *Error) clone() *Error {
 	newErr.Details = e.Details[:len(e.Details):len(e.Details)]
 	return newErr
 }
-
-var errorLog = LogRaw
 
 func Code(err error) codes.Code {
 	if err == nil {
