@@ -11,10 +11,15 @@ import (
 )
 
 // RawCodec is a gRPC codec that passes bytes through without marshaling.
-// Name() returns "proto" so the server treats it as a normal protobuf request.
-type RawCodec struct{}
+type RawCodec struct {
+	name string
+}
 
-func (RawCodec) Marshal(v any) ([]byte, error) {
+func NewRawCodec(name string) *RawCodec {
+	return &RawCodec{name: name}
+}
+
+func (c *RawCodec) Marshal(v any) ([]byte, error) {
 	switch val := v.(type) {
 	case []byte:
 		return val, nil
@@ -25,7 +30,7 @@ func (RawCodec) Marshal(v any) ([]byte, error) {
 	}
 }
 
-func (RawCodec) Unmarshal(data []byte, v any) error {
+func (c *RawCodec) Unmarshal(data []byte, v any) error {
 	switch ptr := v.(type) {
 	case *[]byte:
 		*ptr = data
@@ -35,8 +40,8 @@ func (RawCodec) Unmarshal(data []byte, v any) error {
 	}
 }
 
-func (RawCodec) Name() string {
-	return "proto"
+func (c *RawCodec) Name() string {
+	return c.name
 }
 
 func AddGrpcCmd(rootCmd *cobra.Command) {
@@ -70,7 +75,7 @@ func SendGrpcRequest(req *SendGrpcRequestReq) error {
 	defer cc.Close()
 
 	var resp []byte
-	err = cc.Invoke(context.Background(), req.Method, []byte(req.Body), &resp, grpc.ForceCodec(RawCodec{}))
+	err = cc.Invoke(context.Background(), req.Method, []byte(req.Body), &resp, grpc.ForceCodec(NewRawCodec("proto")))
 	if err != nil {
 		return err
 	}
