@@ -53,23 +53,25 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	method := cmd.Flags().String("method", "/helloworld.Greeter/SayHello", "method name")
 	body := cmd.Flags().String("body", "", "request content")
 	subType := cmd.Flags().String("sub-type", "", "content sub-type (e.g. proto, json)")
-	_ = cmd.MarkFlagRequired("sub-type")
+	query := cmd.Flags().String("query", "", "query type")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return SendGrpcRequest(&SendGrpcRequestReq{
+		return GrpcMain(&GrpcMainReq{
 			Host:    *host,
 			Body:    *body,
 			Method:  *method,
 			SubType: *subType,
+			Query:   *query,
 		})
 	}
 	rootCmd.AddCommand(cmd)
 }
 
-type SendGrpcRequestReq struct {
+type GrpcMainReq struct {
 	Host    string
 	Body    string
 	Method  string
 	SubType string
+	Query   string
 }
 
 func resolveBody(body string) ([]byte, error) {
@@ -79,7 +81,11 @@ func resolveBody(body string) ([]byte, error) {
 	return []byte(body), nil
 }
 
-func SendGrpcRequest(req *SendGrpcRequestReq) error {
+func GrpcMain(req *GrpcMainReq) error {
+	return sendRequest(req)
+}
+
+func sendRequest(req *GrpcMainReq) error {
 	body, err := resolveBody(req.Body)
 	if err != nil {
 		return fmt.Errorf("read body: %w", err)
