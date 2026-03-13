@@ -16,6 +16,29 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func AddGrpcCmd(rootCmd *cobra.Command) {
+	cmd := &cobra.Command{
+		Use: "grpc",
+	}
+	host := cmd.Flags().String("host", "127.0.0.1:8888", "server instance address")
+	method := cmd.Flags().String("method", "/helloworld.Greeter/SayHello", "method name")
+	body := cmd.Flags().String("body", "", "request content")
+	subType := cmd.Flags().String("sub-type", "", "content sub-type (e.g. proto, json)")
+	query := cmd.Flags().String("query", "", "query type")
+	svr := cmd.Flags().String("svr", "", "server name")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return GrpcMain(&GrpcMainReq{
+			Host:    *host,
+			Body:    *body,
+			Method:  *method,
+			SubType: *subType,
+			Query:   *query,
+			Svr:     *svr,
+		})
+	}
+	rootCmd.AddCommand(cmd)
+}
+
 // RawCodec is a gRPC codec that passes bytes through without marshaling.
 type RawCodec struct {
 	name string
@@ -50,33 +73,13 @@ func (c *RawCodec) Name() string {
 	return c.name
 }
 
-func AddGrpcCmd(rootCmd *cobra.Command) {
-	cmd := &cobra.Command{
-		Use: "grpc",
-	}
-	host := cmd.Flags().String("host", "127.0.0.1:8888", "server instance address")
-	method := cmd.Flags().String("method", "/helloworld.Greeter/SayHello", "method name")
-	body := cmd.Flags().String("body", "", "request content")
-	subType := cmd.Flags().String("sub-type", "", "content sub-type (e.g. proto, json)")
-	query := cmd.Flags().String("query", "", "query type")
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return GrpcMain(&GrpcMainReq{
-			Host:    *host,
-			Body:    *body,
-			Method:  *method,
-			SubType: *subType,
-			Query:   *query,
-		})
-	}
-	rootCmd.AddCommand(cmd)
-}
-
 type GrpcMainReq struct {
 	Host    string
 	Body    string
 	Method  string
 	SubType string
 	Query   string
+	Svr     string
 }
 
 func resolveBody(body string) ([]byte, error) {
@@ -97,8 +100,14 @@ func queryByReflect(req *GrpcMainReq) error {
 	switch req.Query {
 	case "list-svr":
 		return querySvrList(req)
+	case "list-method":
+		return queryMethodList(req)
 	}
 	return errors.New("invalid query value")
+}
+
+func queryMethodList(req *GrpcMainReq) error {
+	return nil
 }
 
 type ReflectionClient interface {
