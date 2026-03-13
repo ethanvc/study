@@ -51,24 +51,27 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	host := cmd.Flags().String("host", "127.0.0.1:8888", "server instance address")
 	method := cmd.Flags().String("method", "/helloworld.Greeter/SayHello", "method name")
 	body := cmd.Flags().String("body", "", "request content")
+	subType := cmd.Flags().String("sub-type", "", "content sub-type (e.g. proto, json)")
+	_ = cmd.MarkFlagRequired("sub-type")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return SendGrpcRequest(&SendGrpcRequestReq{
-			Host:   *host,
-			Body:   *body,
-			Method: *method,
+			Host:    *host,
+			Body:    *body,
+			Method:  *method,
+			SubType: *subType,
 		})
 	}
 	rootCmd.AddCommand(cmd)
 }
 
 type SendGrpcRequestReq struct {
-	Host   string
-	Body   string
-	Method string
+	Host    string
+	Body    string
+	Method  string
+	SubType string
 }
 
 func SendGrpcRequest(req *SendGrpcRequestReq) error {
-	ctx := context.Background()
 	cc, err := grpc.NewClient(req.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("dial server: %w", err)
@@ -76,7 +79,11 @@ func SendGrpcRequest(req *SendGrpcRequestReq) error {
 	defer cc.Close()
 
 	var resp []byte
-	err = cc.Invoke(ctx, req.Method, []byte(req.Body), &resp, grpc.ForceCodec(NewRawCodec("proto")))
+	err = cc.Invoke(
+		context.Background(), req.Method, []byte(req.Body), &resp,
+		grpc.ForceCodec(NewRawCodec(req.SubType)),
+		grpc.CallContentSubtype(req.SubType),
+	)
 	if err != nil {
 		return err
 	}
