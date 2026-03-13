@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 )
 
 // RawCodec is a gRPC codec that passes bytes through without marshaling.
@@ -98,6 +99,38 @@ func queryByReflect(req *GrpcMainReq) error {
 }
 
 func querySvrList(req *GrpcMainReq) error {
+	cc, err := grpc.NewClient(req.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("dial server: %w", err)
+	}
+	defer cc.Close()
+
+	ctx := context.Background()
+	stream, err := reflectionv1.NewServerReflectionClient(cc).ServerReflectionInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("create reflection stream: %w", err)
+	}
+
+	err = stream.Send(&reflectionv1.ServerReflectionRequest{
+		MessageRequest: &reflectionv1.ServerReflectionRequest_ListServices{},
+	})
+	if err != nil {
+		return fmt.Errorf("send list services: %w", err)
+	}
+	stream.CloseSend()
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return fmt.Errorf("recv list services: %w", err)
+	}
+
+	list := resp.GetListServicesResponse()
+	if list == nil {
+		return fmt.Errorf("unexpected response: %v", resp.GetMessageResponse())
+	}
+	for _, svc := range list.GetService() {
+		fmt.Println(svc.GetName())
+	}
 	return nil
 }
 
