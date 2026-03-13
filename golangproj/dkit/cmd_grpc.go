@@ -36,7 +36,7 @@ func (c *RawCodec) Unmarshal(data []byte, v any) error {
 		*ptr = data
 		return nil
 	default:
-		return fmt.Errorf("raw codec: unsupported unmarshal type %T", v)
+		return fmt.Errorf("raw codec: expect *[]byte, received %T", v)
 	}
 }
 
@@ -68,6 +68,7 @@ type SendGrpcRequestReq struct {
 }
 
 func SendGrpcRequest(req *SendGrpcRequestReq) error {
+	ctx := context.Background()
 	cc, err := grpc.NewClient(req.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("dial server: %w", err)
@@ -75,7 +76,7 @@ func SendGrpcRequest(req *SendGrpcRequestReq) error {
 	defer cc.Close()
 
 	var resp []byte
-	err = cc.Invoke(context.Background(), req.Method, []byte(req.Body), &resp, grpc.ForceCodec(NewRawCodec("proto")))
+	err = cc.Invoke(ctx, req.Method, []byte(req.Body), &resp, grpc.ForceCodec(NewRawCodec("proto")))
 	if err != nil {
 		return err
 	}
