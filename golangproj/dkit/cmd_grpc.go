@@ -9,8 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
+	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
+	"google.golang.org/grpc/status"
 )
 
 // RawCodec is a gRPC codec that passes bytes through without marshaling.
@@ -107,33 +110,71 @@ func querySvrList(req *GrpcMainReq) error {
 	}
 	defer cc.Close()
 
-	ctx := context.Background()
-	stream, err := reflectionv1.NewServerReflectionClient(cc).ServerReflectionInfo(ctx)
+	names, err := listServicesV1(cc)
 	if err != nil {
-		return fmt.Errorf("create reflection stream: %w", err)
+		if s, ok := status.FromError(err); ok && s.Code() == codes.Unimplemented {
+			names, err = listServicesV1Alpha(cc)
+		}
 	}
-
-	err = stream.Send(&reflectionv1.ServerReflectionRequest{
-		MessageRequest: &reflectionv1.ServerReflectionRequest_ListServices{},
-	})
 	if err != nil {
-		return fmt.Errorf("send list services: %w", err)
+		return err
 	}
-	stream.CloseSend()
-
-	resp, err := stream.Recv()
-	if err != nil {
-		return fmt.Errorf("recv list services: %w", err)
-	}
-
-	list := resp.GetListServicesResponse()
-	if list == nil {
-		return fmt.Errorf("unexpected response: %v", resp.GetMessageResponse())
-	}
-	for _, svc := range list.GetService() {
-		fmt.Println(svc.GetName())
+	for _, name := range names {
+		fmt.Println(name)
 	}
 	return nil
+}
+
+func listServicesV1(cc *grpc.ClientConn) ([]string, error) {
+	stream, err := reflectionv1.NewServerReflectionClient(cc).ServerReflectionInfo(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	if err := stream.Send(&reflectionv1.ServerReflectionRequest{
+		MessageRequest: &reflectionv1.ServerReflectionRequest_ListServices{},
+	}); err != nil {
+		return nil, err
+	}
+	stream.CloseSend()
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	list := resp.GetListServicesResponse()
+	if list == nil {
+		return nil, fmt.Errorf("unexpected response: %v", resp.GetMessageResponse())
+	}
+	var names []string
+	for _, svc := range list.GetService() {
+		names = append(names, svc.GetName())
+	}
+	return names, nil
+}
+
+func listServicesV1Alpha(cc *grpc.ClientConn) ([]string, error) {
+	stream, err := reflectionv1alpha.NewServerReflectionClient(cc).ServerReflectionInfo(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	if err := stream.Send(&reflectionv1alpha.ServerReflectionRequest{
+		MessageRequest: &reflectionv1alpha.ServerReflectionRequest_ListServices{},
+	}); err != nil {
+		return nil, err
+	}
+	stream.CloseSend()
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	list := resp.GetListServicesResponse()
+	if list == nil {
+		return nil, fmt.Errorf("unexpected response: %v", resp.GetMessageResponse())
+	}
+	var names []string
+	for _, svc := range list.GetService() {
+		names = append(names, svc.GetName())
+	}
+	return names, nil
 }
 
 func sendRequest(req *GrpcMainReq) error {
