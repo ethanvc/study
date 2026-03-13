@@ -41,16 +41,16 @@ func (RawCodec) Name() string {
 
 func AddGrpcCmd(rootCmd *cobra.Command) {
 	cmd := &cobra.Command{
-		Use:  "grpc [method]",
-		Args: cobra.ExactArgs(1),
+		Use: "grpc",
 	}
 	host := cmd.Flags().String("host", "127.0.0.1:8888", "server instance address")
+	method := cmd.Flags().String("method", "/helloworld.Greeter/SayHello", "method name")
 	body := cmd.Flags().String("body", "", "request content")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return SendGrpcRequest(&SendGrpcRequestReq{
 			Host:   *host,
 			Body:   *body,
-			Method: args[0],
+			Method: *method,
 		})
 	}
 	rootCmd.AddCommand(cmd)
@@ -70,8 +70,7 @@ func SendGrpcRequest(req *SendGrpcRequestReq) error {
 	defer cc.Close()
 
 	var resp []byte
-	method := "/" + req.Method
-	err = cc.Invoke(context.Background(), method, []byte(req.Body), &resp, grpc.ForceCodec(RawCodec{}))
+	err = cc.Invoke(context.Background(), req.Method, []byte(req.Body), &resp, grpc.ForceCodec(RawCodec{}))
 	if err != nil {
 		return err
 	}
