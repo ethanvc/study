@@ -2,6 +2,7 @@ package dkit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -82,7 +83,22 @@ func resolveBody(body string) ([]byte, error) {
 }
 
 func GrpcMain(req *GrpcMainReq) error {
+	if req.Query != "" {
+		return queryByReflect(req)
+	}
 	return sendRequest(req)
+}
+
+func queryByReflect(req *GrpcMainReq) error {
+	switch req.Query {
+	case "list":
+		return querySvrList(req)
+	}
+	return errors.New("invalid query value")
+}
+
+func querySvrList(req *GrpcMainReq) error {
+	return nil
 }
 
 func sendRequest(req *GrpcMainReq) error {
