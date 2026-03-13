@@ -92,14 +92,16 @@ func GrpcMain(req *GrpcMainReq) error {
 
 func queryByReflect(req *GrpcMainReq) error {
 	switch req.Query {
-	case "list":
+	case "list-svr":
 		return querySvrList(req)
 	}
 	return errors.New("invalid query value")
 }
 
 func querySvrList(req *GrpcMainReq) error {
-	cc, err := grpc.NewClient(req.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := NewGrpcClient(&GrpcClientConfig{
+		Host: req.Host,
+	})
 	if err != nil {
 		return fmt.Errorf("dial server: %w", err)
 	}
@@ -140,7 +142,9 @@ func sendRequest(req *GrpcMainReq) error {
 		return fmt.Errorf("read body: %w", err)
 	}
 
-	cc, err := grpc.NewClient(req.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := NewGrpcClient(&GrpcClientConfig{
+		Host: req.Host,
+	})
 	if err != nil {
 		return fmt.Errorf("dial server: %w", err)
 	}
@@ -157,4 +161,13 @@ func sendRequest(req *GrpcMainReq) error {
 
 	_, err = os.Stdout.Write(resp)
 	return err
+}
+
+type GrpcClientConfig struct {
+	Host string
+}
+
+func NewGrpcClient(conf *GrpcClientConfig) (*grpc.ClientConn, error) {
+	cc, err := grpc.NewClient(conf.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	return cc, err
 }
