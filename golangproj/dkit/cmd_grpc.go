@@ -101,32 +101,29 @@ func queryByReflect(req *GrpcMainReq) error {
 	return errors.New("invalid query value")
 }
 
-func querySvrList(req *GrpcMainReq) error {
-	cc, err := NewGrpcClient(&GrpcClientConfig{
-		Host: req.Host,
-	})
-	if err != nil {
-		return fmt.Errorf("dial server: %w", err)
-	}
-	defer cc.Close()
-
-	names, err := listServicesV1(cc)
-	if err != nil {
-		if s, ok := status.FromError(err); ok && s.Code() == codes.Unimplemented {
-			names, err = listServicesV1Alpha(cc)
-		}
-	}
-	if err != nil {
-		return err
-	}
-	for _, name := range names {
-		fmt.Println(name)
-	}
-	return nil
+type ReflectionClient interface {
+	ListServices(ctx context.Context) ([]string, error)
 }
 
-func listServicesV1(cc *grpc.ClientConn) ([]string, error) {
-	stream, err := reflectionv1.NewServerReflectionClient(cc).ServerReflectionInfo(context.Background())
+// NewReflectionClient tries v1 first; on Unimplemented falls back to v1alpha.
+func NewReflectionClient(cc *grpc.ClientConn) (ReflectionClient, error) {
+	v1 := &reflectionClientV1{cc: cc}
+	_, err := v1.ListServices(context.Background())
+	if err == nil {
+		return v1, nil
+	}
+	if s, ok := status.FromError(err); ok && s.Code() == codes.Unimplemented {
+		return &reflectionClientV1Alpha{cc: cc}, nil
+	}
+	return nil, err
+}
+
+type reflectionClientV1 struct {
+	cc *grpc.ClientConn
+}
+
+func (c *reflectionClientV1) ListServices(ctx context.Context) ([]string, error) {
+	stream, err := reflectionv1.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -151,8 +148,12 @@ func listServicesV1(cc *grpc.ClientConn) ([]string, error) {
 	return names, nil
 }
 
-func listServicesV1Alpha(cc *grpc.ClientConn) ([]string, error) {
-	stream, err := reflectionv1alpha.NewServerReflectionClient(cc).ServerReflectionInfo(context.Background())
+type reflectionClientV1Alpha struct {
+	cc *grpc.ClientConn
+}
+
+func (c *reflectionClientV1Alpha) ListServices(ctx context.Context) ([]string, error) {
+	stream, err := reflectionv1alpha.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +176,27 @@ func listServicesV1Alpha(cc *grpc.ClientConn) ([]string, error) {
 		names = append(names, svc.GetName())
 	}
 	return names, nil
+}
+
+func querySvrList(req *GrpcMainReq) error {
+	cc, err := NewGrpcClient(&GrpcClientConfig{Host: req.Host})
+	if err != nil {
+		return fmt.Errorf("dial server: %w", err)
+	}
+	defer cc.Close()
+
+	rc, err := NewReflectionClient(cc)
+	if err != nil {
+		return err
+	}
+	names, err := rc.ListServices(context.Background())
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		fmt.Println(name)
+	}
+	return nil
 }
 
 func sendRequest(req *GrpcMainReq) error {
