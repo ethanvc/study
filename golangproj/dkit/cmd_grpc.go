@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -71,7 +72,19 @@ type SendGrpcRequestReq struct {
 	SubType string
 }
 
+func resolveBody(body string) ([]byte, error) {
+	if strings.HasPrefix(body, "@") {
+		return os.ReadFile(body[1:])
+	}
+	return []byte(body), nil
+}
+
 func SendGrpcRequest(req *SendGrpcRequestReq) error {
+	body, err := resolveBody(req.Body)
+	if err != nil {
+		return fmt.Errorf("read body: %w", err)
+	}
+
 	cc, err := grpc.NewClient(req.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("dial server: %w", err)
@@ -80,7 +93,7 @@ func SendGrpcRequest(req *SendGrpcRequestReq) error {
 
 	var resp []byte
 	err = cc.Invoke(
-		context.Background(), req.Method, []byte(req.Body), &resp,
+		context.Background(), req.Method, body, &resp,
 		grpc.ForceCodec(NewRawCodec(req.SubType)),
 		grpc.CallContentSubtype(req.SubType),
 	)
