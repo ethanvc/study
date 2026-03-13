@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
+	descriptorpb "google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/grpc/credentials/insecure"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
@@ -107,11 +109,29 @@ func queryByReflect(req *GrpcMainReq) error {
 }
 
 func queryMethodList(req *GrpcMainReq) error {
+	cc, err := NewGrpcClient(&GrpcClientConfig{Host: req.Host})
+	if err != nil {
+		return fmt.Errorf("dial server: %w", err)
+	}
+	defer cc.Close()
+
+	rc, err := NewReflectionClient(cc)
+	if err != nil {
+		return err
+	}
+	methods, err := rc.ListMethods(context.Background(), req.Svr)
+	if err != nil {
+		return err
+	}
+	for _, m := range methods {
+		fmt.Println(m)
+	}
 	return nil
 }
 
 type ReflectionClient interface {
 	ListServices(ctx context.Context) ([]string, error)
+	ListMethods(ctx context.Context, service string) ([]string, error)
 }
 
 // NewReflectionClient tries v1 first; on Unimplemented falls back to v1alpha.
@@ -157,6 +177,30 @@ func (c *reflectionClientV1) ListServices(ctx context.Context) ([]string, error)
 	return names, nil
 }
 
+func (c *reflectionClientV1) ListMethods(ctx context.Context, service string) ([]string, error) {
+	stream, err := reflectionv1.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := stream.Send(&reflectionv1.ServerReflectionRequest{
+		MessageRequest: &reflectionv1.ServerReflectionRequest_FileContainingSymbol{
+			FileContainingSymbol: service,
+		},
+	}); err != nil {
+		return nil, err
+	}
+	stream.CloseSend()
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	fdResp := resp.GetFileDescriptorResponse()
+	if fdResp == nil {
+		return nil, fmt.Errorf("unexpected response: %v", resp.GetMessageResponse())
+	}
+	return extractMethods(fdResp.GetFileDescriptorProto(), service)
+}
+
 type reflectionClientV1Alpha struct {
 	cc *grpc.ClientConn
 }
@@ -185,6 +229,51 @@ func (c *reflectionClientV1Alpha) ListServices(ctx context.Context) ([]string, e
 		names = append(names, svc.GetName())
 	}
 	return names, nil
+}
+
+func (c *reflectionClientV1Alpha) ListMethods(ctx context.Context, service string) ([]string, error) {
+	stream, err := reflectionv1alpha.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := stream.Send(&reflectionv1alpha.ServerReflectionRequest{
+		MessageRequest: &reflectionv1alpha.ServerReflectionRequest_FileContainingSymbol{
+			FileContainingSymbol: service,
+		},
+	}); err != nil {
+		return nil, err
+	}
+	stream.CloseSend()
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	fdResp := resp.GetFileDescriptorResponse()
+	if fdResp == nil {
+		return nil, fmt.Errorf("unexpected response: %v", resp.GetMessageResponse())
+	}
+	return extractMethods(fdResp.GetFileDescriptorProto(), service)
+}
+
+func extractMethods(rawDescs [][]byte, service string) ([]string, error) {
+	for _, raw := range rawDescs {
+		fd := &descriptorpb.FileDescriptorProto{}
+		if err := proto.Unmarshal(raw, fd); err != nil {
+			return nil, fmt.Errorf("unmarshal file descriptor: %w", err)
+		}
+		for _, svc := range fd.GetService() {
+			fqn := fd.GetPackage() + "." + svc.GetName()
+			if fqn != service {
+				continue
+			}
+			var methods []string
+			for _, m := range svc.GetMethod() {
+				methods = append(methods, fqn+"/"+m.GetName())
+			}
+			return methods, nil
+		}
+	}
+	return nil, fmt.Errorf("service %q not found in file descriptors", service)
 }
 
 func querySvrList(req *GrpcMainReq) error {
