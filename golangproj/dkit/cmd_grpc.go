@@ -95,7 +95,6 @@ func SendGrpcRequest(req *SendGrpcRequestReq) error {
 	err = cc.Invoke(
 		context.Background(), req.Method, body, &resp,
 		grpc.ForceCodec(NewRawCodec(req.SubType)),
-		grpc.CallContentSubtype(req.SubType),
 	)
 	if err != nil {
 		return err
