@@ -10,12 +10,12 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/protobuf/proto"
-	descriptorpb "google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/grpc/credentials/insecure"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	descriptorpb "google.golang.org/protobuf/types/descriptorpb"
 )
 
 func AddGrpcCmd(rootCmd *cobra.Command) {
