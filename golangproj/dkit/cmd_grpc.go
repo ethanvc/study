@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
-
 	"sort"
+	"strings"
 
 	"github.com/ethanvc/study/golangproj/xobs"
 	"github.com/spf13/cobra"
@@ -84,7 +83,7 @@ func (c *RawCodec) Name() string {
 }
 
 type GrpcMainReq struct {
-	Host      string
+	Host    string
 	Body    string
 	Method  string
 	SubType string
@@ -588,14 +587,15 @@ func sendRequest(req *GrpcMainReq) error {
 		return fmt.Errorf("read body: %w", err)
 	}
 
-	jsonMode := req.SubType == ""
+	var callOpts []grpc.CallOption
+	var invokeReq any
 	var outputMsgDesc protoreflect.MessageDescriptor
-	codecName := req.SubType
 
-	if jsonMode {
-		codecName = "proto"
+	grpcMode := req.SubType == ""
+
+	if grpcMode {
 		var inputMsg proto.Message
-		inputMsg, outputMsgDesc, err = BuildRequestFromJSON(ctx, req.Host, req.Method)
+		inputMsg, _, err = BuildRequestFromJSON(ctx, req.Host, req.Method)
 		if err != nil {
 			return err
 		}
@@ -604,10 +604,10 @@ func sendRequest(req *GrpcMainReq) error {
 				return fmt.Errorf("unmarshal proto-json request: %w", err)
 			}
 		}
-		body, err = proto.Marshal(inputMsg)
-		if err != nil {
-			return fmt.Errorf("marshal proto request: %w", err)
-		}
+		invokeReq = inputMsg
+	} else {
+		invokeReq = body
+		callOpts = append(callOpts, grpc.ForceCodec(NewRawCodec(req.SubType)))
 	}
 
 	cc, err := NewGrpcClient(&GrpcClientConfig{Host: req.Host})
@@ -618,9 +618,9 @@ func sendRequest(req *GrpcMainReq) error {
 
 	var resp []byte
 	var header metadata.MD
-	err = cc.Invoke(ctx, req.Method, body, &resp,
-		grpc.ForceCodec(NewRawCodec(codecName)),
-		grpc.Header(&header),
+	callOpts = append(callOpts, grpc.Header(&header))
+	err = cc.Invoke(ctx, req.Method, invokeReq, &resp,
+		callOpts...,
 	)
 	if err != nil {
 		return err
@@ -633,7 +633,7 @@ func sendRequest(req *GrpcMainReq) error {
 		return nil
 	}
 
-	if jsonMode {
+	if grpcMode {
 		outputMsg := dynamicpb.NewMessage(outputMsgDesc)
 		if err := proto.Unmarshal(resp, outputMsg); err != nil {
 			return fmt.Errorf("unmarshal proto response: %w", err)
