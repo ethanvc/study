@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethanvc/study/golangproj/xobs"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -208,17 +209,17 @@ type reflectionClientV1Alpha struct {
 func (c *reflectionClientV1Alpha) ListServices(ctx context.Context) ([]string, error) {
 	stream, err := reflectionv1alpha.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
 	if err != nil {
-		return nil, err
+		return nil, xobs.New(codes.Internal, "CallServerReflectionInfoErr").SetMsg(err.Error())
 	}
-	if err := stream.Send(&reflectionv1alpha.ServerReflectionRequest{
+	if err = stream.Send(&reflectionv1alpha.ServerReflectionRequest{
 		MessageRequest: &reflectionv1alpha.ServerReflectionRequest_ListServices{},
 	}); err != nil {
-		return nil, err
+		return nil, xobs.New(codes.Internal, "CallStreamSendErr").SetMsg(err.Error())
 	}
 	stream.CloseSend()
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, err
+		return nil, xobs.New(codes.Internal, "CallStreamRecvErr").SetMsg(err.Error())
 	}
 	list := resp.GetListServicesResponse()
 	if list == nil {
