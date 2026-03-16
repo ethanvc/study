@@ -544,6 +544,10 @@ func sendRequest(req *GrpcMainReq) error {
 		return err
 	}
 
+	if len(resp) == 0 {
+		fmt.Fprintln(os.Stderr, "(empty response)")
+		return nil
+	}
 	_, err = os.Stdout.Write(resp)
 	return err
 }
