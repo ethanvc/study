@@ -363,30 +363,55 @@ func queryShowMethod(req *GrpcMainReq) error {
 		shortTypeName(outputFQ),
 	)
 
-	fdMap := make(map[string]*descriptorpb.FileDescriptorProto)
+	resolver := &messageResolver{
+		rc:      rc,
+		ctx:     ctx,
+		fdMap:   make(map[string]*descriptorpb.FileDescriptorProto),
+		printed: make(map[string]bool),
+	}
 	for _, fd := range fds {
-		fdMap[fd.GetName()] = fd
+		resolver.fdMap[fd.GetName()] = fd
 	}
-
-	for _, typeFQ := range []string{inputFQ, outputFQ} {
-		if findMessageInFdMap(fdMap, typeFQ) != nil {
-			continue
-		}
-		moreFds, err := rc.GetFileDescriptorsBySymbol(ctx, strings.TrimPrefix(typeFQ, "."))
-		if err != nil {
-			continue
-		}
-		for _, fd := range moreFds {
-			fdMap[fd.GetName()] = fd
-		}
-	}
-
-	for _, typeFQ := range []string{inputFQ, outputFQ} {
-		if msg := findMessageInFdMap(fdMap, typeFQ); msg != nil {
-			printMessageDescriptor(msg, typeFQ)
-		}
-	}
+	resolver.resolveAndPrint(inputFQ)
+	resolver.resolveAndPrint(outputFQ)
 	return nil
+}
+
+type messageResolver struct {
+	rc      ReflectionClient
+	ctx     context.Context
+	fdMap   map[string]*descriptorpb.FileDescriptorProto
+	printed map[string]bool
+}
+
+func (r *messageResolver) resolveAndPrint(typeFQ string) {
+	normalized := strings.TrimPrefix(typeFQ, ".")
+	if r.printed[normalized] {
+		return
+	}
+	r.printed[normalized] = true
+
+	msg := findMessageInFdMap(r.fdMap, typeFQ)
+	if msg == nil {
+		moreFds, err := r.rc.GetFileDescriptorsBySymbol(r.ctx, normalized)
+		if err == nil {
+			for _, fd := range moreFds {
+				r.fdMap[fd.GetName()] = fd
+			}
+			msg = findMessageInFdMap(r.fdMap, typeFQ)
+		}
+	}
+	if msg == nil {
+		return
+	}
+
+	printMessageDescriptor(msg, typeFQ)
+
+	for _, f := range msg.GetField() {
+		if f.GetType() == descriptorpb.FieldDescriptorProto_TYPE_MESSAGE {
+			r.resolveAndPrint(f.GetTypeName())
+		}
+	}
 }
 
 func parseMethodPath(method string) (service, methodName string, err error) {
@@ -421,9 +446,21 @@ func findMessageInFdMap(fdMap map[string]*descriptorpb.FileDescriptorProto, fqn 
 	for _, fd := range fdMap {
 		pkg := fd.GetPackage()
 		for _, msg := range fd.GetMessageType() {
-			if pkg+"."+msg.GetName() == fqn {
-				return msg
+			if found := findNestedMessage(msg, pkg+"."+msg.GetName(), fqn); found != nil {
+				return found
 			}
+		}
+	}
+	return nil
+}
+
+func findNestedMessage(msg *descriptorpb.DescriptorProto, prefix, target string) *descriptorpb.DescriptorProto {
+	if prefix == target {
+		return msg
+	}
+	for _, nested := range msg.GetNestedType() {
+		if found := findNestedMessage(nested, prefix+"."+nested.GetName(), target); found != nil {
+			return found
 		}
 	}
 	return nil
