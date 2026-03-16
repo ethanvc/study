@@ -2,7 +2,6 @@ package dkit
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -105,7 +104,7 @@ func queryByReflect(req *GrpcMainReq) error {
 	case "list-method":
 		return queryMethodList(req)
 	}
-	return errors.New("invalid query value")
+	return xobs.New(codes.InvalidArgument, "InvalidQueryValue").SetMsg("invalid query value")
 }
 
 func queryMethodList(req *GrpcMainReq) error {
