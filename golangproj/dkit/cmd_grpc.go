@@ -16,8 +16,13 @@ import (
 	"google.golang.org/grpc/metadata"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 	descriptorpb "google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 func AddGrpcCmd(rootCmd *cobra.Command) {
@@ -524,15 +529,87 @@ func querySvrList(req *GrpcMainReq) error {
 	return nil
 }
 
+// BuildRequestFromJSON 根据 host、method 通过反射解析入参类型，将 jsonBody 反序列化进该类型并序列化为 proto 字节；
+// 同时返回出参的 MessageDescriptor，供调用方将响应反序列化后转 JSON。
+func BuildRequestFromJSON(ctx context.Context, host, method string, jsonBody []byte) (reqBytes []byte, outputMsgDesc protoreflect.MessageDescriptor, err error) {
+	svcName, methodName, err := parseMethodPath(method)
+	if err != nil {
+		return nil, nil, err
+	}
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: host})
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rc.Close()
+
+	fds, err := rc.GetFileDescriptorsBySymbol(ctx, svcName)
+	if err != nil {
+		return nil, nil, err
+	}
+	md, err := findMethodDescriptor(fds, svcName, methodName)
+	if err != nil {
+		return nil, nil, err
+	}
+	registry, err := buildDescriptorRegistry(fds)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	inputTypeName := protoreflect.FullName(strings.TrimPrefix(md.GetInputType(), "."))
+	outputTypeName := protoreflect.FullName(strings.TrimPrefix(md.GetOutputType(), "."))
+
+	inputDesc, err := registry.FindDescriptorByName(inputTypeName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve input type %s: %w", inputTypeName, err)
+	}
+	outputDesc, err := registry.FindDescriptorByName(outputTypeName)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve output type %s: %w", outputTypeName, err)
+	}
+
+	inputMsgDesc, ok := inputDesc.(protoreflect.MessageDescriptor)
+	if !ok {
+		return nil, nil, fmt.Errorf("input type %s is not a message", inputTypeName)
+	}
+	outputMsgDescVal, ok := outputDesc.(protoreflect.MessageDescriptor)
+	if !ok {
+		return nil, nil, fmt.Errorf("output type %s is not a message", outputTypeName)
+	}
+
+	inputMsg := dynamicpb.NewMessage(inputMsgDesc)
+	if len(jsonBody) > 0 {
+		if err := protojson.Unmarshal(jsonBody, inputMsg); err != nil {
+			return nil, nil, fmt.Errorf("unmarshal JSON request: %w", err)
+		}
+	}
+	reqBytes, err = proto.Marshal(inputMsg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("marshal proto request: %w", err)
+	}
+	return reqBytes, outputMsgDescVal, nil
+}
+
 func sendRequest(req *GrpcMainReq) error {
+	ctx := context.Background()
+
 	body, err := resolveBody(req.Body)
 	if err != nil {
 		return fmt.Errorf("read body: %w", err)
 	}
 
-	cc, err := NewGrpcClient(&GrpcClientConfig{
-		Host: req.Host,
-	})
+	jsonMode := req.SubType == ""
+	var outputMsgDesc protoreflect.MessageDescriptor
+	codecName := req.SubType
+
+	if jsonMode {
+		codecName = "proto"
+		body, outputMsgDesc, err = BuildRequestFromJSON(ctx, req.Host, req.Method, body)
+		if err != nil {
+			return err
+		}
+	}
+
+	cc, err := NewGrpcClient(&GrpcClientConfig{Host: req.Host})
 	if err != nil {
 		return fmt.Errorf("dial server: %w", err)
 	}
@@ -540,9 +617,8 @@ func sendRequest(req *GrpcMainReq) error {
 
 	var resp []byte
 	var header metadata.MD
-	err = cc.Invoke(
-		context.Background(), req.Method, body, &resp,
-		grpc.ForceCodec(NewRawCodec(req.SubType)),
+	err = cc.Invoke(ctx, req.Method, body, &resp,
+		grpc.ForceCodec(NewRawCodec(codecName)),
 		grpc.Header(&header),
 	)
 	if err != nil {
@@ -555,8 +631,78 @@ func sendRequest(req *GrpcMainReq) error {
 		fmt.Fprintln(os.Stderr, "(empty response)")
 		return nil
 	}
+
+	if jsonMode {
+		outputMsg := dynamicpb.NewMessage(outputMsgDesc)
+		if err := proto.Unmarshal(resp, outputMsg); err != nil {
+			return fmt.Errorf("unmarshal proto response: %w", err)
+		}
+		jsonBytes, err := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(outputMsg)
+		if err != nil {
+			return fmt.Errorf("marshal JSON response: %w", err)
+		}
+		fmt.Println(string(jsonBytes))
+		return nil
+	}
+
 	_, err = os.Stdout.Write(resp)
 	return err
+}
+
+func buildDescriptorRegistry(fds []*descriptorpb.FileDescriptorProto) (*protoregistry.Files, error) {
+	files := new(protoregistry.Files)
+	fdByName := make(map[string]*descriptorpb.FileDescriptorProto, len(fds))
+	for _, fd := range fds {
+		fdByName[fd.GetName()] = fd
+	}
+	registered := make(map[string]bool)
+	resolver := &fallbackResolver{primary: files, fallback: protoregistry.GlobalFiles}
+
+	var register func(*descriptorpb.FileDescriptorProto) error
+	register = func(fd *descriptorpb.FileDescriptorProto) error {
+		if registered[fd.GetName()] {
+			return nil
+		}
+		for _, dep := range fd.GetDependency() {
+			if depFd, ok := fdByName[dep]; ok {
+				if err := register(depFd); err != nil {
+					return err
+				}
+			}
+		}
+		registered[fd.GetName()] = true
+		fileDesc, err := protodesc.NewFile(fd, resolver)
+		if err != nil {
+			return fmt.Errorf("build file descriptor %s: %w", fd.GetName(), err)
+		}
+		return files.RegisterFile(fileDesc)
+	}
+
+	for _, fd := range fds {
+		if err := register(fd); err != nil {
+			return nil, err
+		}
+	}
+	return files, nil
+}
+
+type fallbackResolver struct {
+	primary  *protoregistry.Files
+	fallback *protoregistry.Files
+}
+
+func (r *fallbackResolver) FindFileByPath(path string) (protoreflect.FileDescriptor, error) {
+	if fd, err := r.primary.FindFileByPath(path); err == nil {
+		return fd, nil
+	}
+	return r.fallback.FindFileByPath(path)
+}
+
+func (r *fallbackResolver) FindDescriptorByName(name protoreflect.FullName) (protoreflect.Descriptor, error) {
+	if d, err := r.primary.FindDescriptorByName(name); err == nil {
+		return d, nil
+	}
+	return r.fallback.FindDescriptorByName(name)
 }
 
 func printMetadata(md metadata.MD) {
