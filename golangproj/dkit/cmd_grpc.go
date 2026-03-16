@@ -2,8 +2,6 @@ package dkit
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -38,16 +36,14 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	subType := cmd.Flags().String("sub-type", "", "content sub-type (e.g. proto, json)")
 	query := cmd.Flags().String("query", "", "query type")
 	svr := cmd.Flags().String("svr", "", "server name")
-	protoJSON := cmd.Flags().Bool("proto-json", false, "whether treat body as proto-json encoding; if false, use standard library json")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return GrpcMain(&GrpcMainReq{
-			Host:      *host,
-			Body:      *body,
-			Method:    *method,
-			SubType:   *subType,
-			Query:     *query,
-			Svr:       *svr,
-			ProtoJSON: *protoJSON,
+			Host:    *host,
+			Body:    *body,
+			Method:  *method,
+			SubType: *subType,
+			Query:   *query,
+			Svr:     *svr,
 		})
 	}
 	rootCmd.AddCommand(cmd)
@@ -89,12 +85,11 @@ func (c *RawCodec) Name() string {
 
 type GrpcMainReq struct {
 	Host      string
-	Body      string
-	Method    string
-	SubType   string
-	Query     string
-	Svr       string
-	ProtoJSON bool
+	Body    string
+	Method  string
+	SubType string
+	Query   string
+	Svr     string
 }
 
 func resolveBody(body string) ([]byte, error) {
@@ -535,210 +530,6 @@ func querySvrList(req *GrpcMainReq) error {
 	return nil
 }
 
-// setMessageFromMap 用标准库 json 解析出的 map 填充 dynamic message，字段名支持 proto 名或 json 名。
-func setMessageFromMap(msg *dynamicpb.Message, m map[string]any) error {
-	md := msg.Descriptor()
-	for i := 0; i < md.Fields().Len(); i++ {
-		fd := md.Fields().Get(i)
-		v, ok := mapGetKey(m, string(fd.Name()), fd.JSONName())
-		if !ok {
-			continue
-		}
-		if err := setField(msg, fd, v); err != nil {
-			return fmt.Errorf("field %s: %w", fd.Name(), err)
-		}
-	}
-	return nil
-}
-
-func mapGetKey(m map[string]any, names ...string) (any, bool) {
-	for _, k := range names {
-		if v, ok := m[k]; ok {
-			return v, true
-		}
-	}
-	return nil, false
-}
-
-func setField(msg *dynamicpb.Message, fd protoreflect.FieldDescriptor, v any) error {
-	if fd.IsList() {
-		sl, ok := v.([]any)
-		if !ok {
-			return fmt.Errorf("expected list for repeated field")
-		}
-		for _, item := range sl {
-			val, err := valueFromAny(fd, item)
-			if err != nil {
-				return err
-			}
-			msg.Mutable(fd).List().Append(val)
-		}
-		return nil
-	}
-	if fd.IsMap() {
-		mp, ok := v.(map[string]any)
-		if !ok {
-			return fmt.Errorf("expected object for map field")
-		}
-		for k, mapVal := range mp {
-			val, err := valueFromAny(fd.MapValue(), mapVal)
-			if err != nil {
-				return err
-			}
-			msg.Mutable(fd).Map().Set(protoreflect.MapKey(protoreflect.ValueOfString(k)), val)
-		}
-		return nil
-	}
-	val, err := valueFromAny(fd, v)
-	if err != nil {
-		return err
-	}
-	msg.Set(fd, val)
-	return nil
-}
-
-func valueFromAny(fd protoreflect.FieldDescriptor, v any) (protoreflect.Value, error) {
-	switch fd.Kind() {
-	case protoreflect.MessageKind:
-		nested, ok := v.(map[string]any)
-		if !ok {
-			return protoreflect.Value{}, fmt.Errorf("expected object for message")
-		}
-		child := dynamicpb.NewMessage(fd.Message())
-		if err := setMessageFromMap(child, nested); err != nil {
-			return protoreflect.Value{}, err
-		}
-		return protoreflect.ValueOfMessage(child.ProtoReflect()), nil
-	case protoreflect.BoolKind:
-		b, ok := v.(bool)
-		if !ok {
-			return protoreflect.Value{}, fmt.Errorf("expected bool, got %T", v)
-		}
-		return protoreflect.ValueOfBool(b), nil
-	case protoreflect.StringKind:
-		s, ok := v.(string)
-		if !ok {
-			return protoreflect.Value{}, fmt.Errorf("expected string, got %T", v)
-		}
-		return protoreflect.ValueOfString(s), nil
-	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
-		n, err := numberToInt64(v)
-		if err != nil {
-			return protoreflect.Value{}, err
-		}
-		return protoreflect.ValueOfInt32(int32(n)), nil
-	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
-		n, err := numberToInt64(v)
-		if err != nil {
-			return protoreflect.Value{}, err
-		}
-		return protoreflect.ValueOfInt64(n), nil
-	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
-		n, err := numberToUint64(v)
-		if err != nil {
-			return protoreflect.Value{}, err
-		}
-		return protoreflect.ValueOfUint32(uint32(n)), nil
-	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
-		n, err := numberToUint64(v)
-		if err != nil {
-			return protoreflect.Value{}, err
-		}
-		return protoreflect.ValueOfUint64(n), nil
-	case protoreflect.FloatKind:
-		f, err := numberToFloat64(v)
-		if err != nil {
-			return protoreflect.Value{}, err
-		}
-		return protoreflect.ValueOfFloat32(float32(f)), nil
-	case protoreflect.DoubleKind:
-		f, err := numberToFloat64(v)
-		if err != nil {
-			return protoreflect.Value{}, err
-		}
-		return protoreflect.ValueOfFloat64(f), nil
-	case protoreflect.EnumKind:
-		n, err := enumValueToNumber(fd.Enum(), v)
-		if err != nil {
-			return protoreflect.Value{}, err
-		}
-		return protoreflect.ValueOfEnum(protoreflect.EnumNumber(n)), nil
-	case protoreflect.BytesKind:
-		s, ok := v.(string)
-		if !ok {
-			return protoreflect.Value{}, fmt.Errorf("expected string (base64) for bytes, got %T", v)
-		}
-		b, err := base64.StdEncoding.DecodeString(s)
-		if err != nil {
-			return protoreflect.Value{}, fmt.Errorf("decode base64 bytes: %w", err)
-		}
-		return protoreflect.ValueOfBytes(b), nil
-	default:
-		return protoreflect.Value{}, fmt.Errorf("unsupported kind %v", fd.Kind())
-	}
-}
-
-func numberToInt64(v any) (int64, error) {
-	switch x := v.(type) {
-	case float64:
-		return int64(x), nil
-	case int:
-		return int64(x), nil
-	case int64:
-		return x, nil
-	case json.Number:
-		n, err := x.Int64()
-		return n, err
-	default:
-		return 0, fmt.Errorf("expected number, got %T", v)
-	}
-}
-
-func numberToUint64(v any) (uint64, error) {
-	n, err := numberToInt64(v)
-	if err != nil {
-		return 0, err
-	}
-	return uint64(n), nil
-}
-
-func numberToFloat64(v any) (float64, error) {
-	switch x := v.(type) {
-	case float64:
-		return x, nil
-	case float32:
-		return float64(x), nil
-	case int:
-		return float64(x), nil
-	case int64:
-		return float64(x), nil
-	case json.Number:
-		return x.Float64()
-	default:
-		return 0, fmt.Errorf("expected number, got %T", v)
-	}
-}
-
-func enumValueToNumber(ed protoreflect.EnumDescriptor, v any) (int32, error) {
-	switch x := v.(type) {
-	case string:
-		for i := 0; i < ed.Values().Len(); i++ {
-			ev := ed.Values().Get(i)
-			if ev.Name() == protoreflect.Name(x) {
-				return int32(ev.Number()), nil
-			}
-		}
-		return 0, fmt.Errorf("unknown enum value %q", x)
-	case float64:
-		return int32(x), nil
-	case json.Number:
-		n, err := x.Int64()
-		return int32(n), err
-	default:
-		return 0, fmt.Errorf("expected string or number for enum, got %T", v)
-	}
-}
-
 // BuildRequestFromJSON 根据 host、method 通过反射解析入参类型，新建并返回入参对象（零值）；
 // 同时返回出参的 MessageDescriptor。不处理 body，由调用方将 JSON 反序列化进入参对象并序列化。
 func BuildRequestFromJSON(ctx context.Context, host, method string) (inputMsg proto.Message, outputMsgDesc protoreflect.MessageDescriptor, err error) {
@@ -809,18 +600,8 @@ func sendRequest(req *GrpcMainReq) error {
 			return err
 		}
 		if len(body) > 0 {
-			if req.ProtoJSON {
-				if err := protojson.Unmarshal(body, inputMsg); err != nil {
-					return fmt.Errorf("unmarshal proto-json request: %w", err)
-				}
-			} else {
-				var m map[string]any
-				if err := json.Unmarshal(body, &m); err != nil {
-					return fmt.Errorf("unmarshal JSON request: %w", err)
-				}
-				if err := setMessageFromMap(inputMsg.(*dynamicpb.Message), m); err != nil {
-					return fmt.Errorf("set request from JSON: %w", err)
-				}
+			if err := protojson.Unmarshal(body, inputMsg); err != nil {
+				return fmt.Errorf("unmarshal proto-json request: %w", err)
 			}
 		}
 		body, err = proto.Marshal(inputMsg)
