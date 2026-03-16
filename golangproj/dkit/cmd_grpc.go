@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	descriptorpb "google.golang.org/protobuf/types/descriptorpb"
 )
@@ -110,17 +109,13 @@ func queryByReflect(req *GrpcMainReq) error {
 }
 
 func queryMethodList(req *GrpcMainReq) error {
-	cc, err := NewGrpcClient(&GrpcClientConfig{Host: req.Host})
-	if err != nil {
-		return fmt.Errorf("dial server: %w", err)
-	}
-	defer cc.Close()
-
-	rc, err := NewReflectionClient(cc)
+	ctx := context.Background()
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host})
 	if err != nil {
 		return err
 	}
-	methods, err := rc.ListMethods(context.Background(), req.Svr)
+	defer rc.Close()
+	methods, err := rc.ListMethods(ctx, req.Svr)
 	if err != nil {
 		return err
 	}
@@ -133,24 +128,46 @@ func queryMethodList(req *GrpcMainReq) error {
 type ReflectionClient interface {
 	ListServices(ctx context.Context) ([]string, error)
 	ListMethods(ctx context.Context, service string) ([]string, error)
+	Close() error
 }
 
-// NewReflectionClient tries v1 first; on Unimplemented falls back to v1alpha.
-func NewReflectionClient(cc *grpc.ClientConn) (ReflectionClient, error) {
-	v1 := &reflectionClientV1{cc: cc}
-	_, err := v1.ListServices(context.Background())
-	if err == nil {
-		return v1, nil
+// NewReflectionClient tries v1 and v1alpha with independent connections,
+// returns the first that succeeds, or both errors if both fail.
+func NewReflectionClient(ctx context.Context, conf *GrpcClientConfig) (ReflectionClient, error) {
+	v1, err1 := newReflectionClientV1(conf)
+	if err1 == nil {
+		_, err1 = v1.ListServices(ctx)
+		if err1 == nil {
+			return v1, nil
+		}
+		v1.Close()
 	}
-	if s, ok := status.FromError(err); ok && s.Code() == codes.Unimplemented {
-		return &reflectionClientV1Alpha{cc: cc}, nil
+
+	v1alpha, err2 := newReflectionClientV1Alpha(conf)
+	if err2 == nil {
+		_, err2 = v1alpha.ListServices(ctx)
+		if err2 == nil {
+			return v1alpha, nil
+		}
+		v1alpha.Close()
 	}
-	return nil, err
+
+	return nil, fmt.Errorf("v1: %w; v1alpha: %w", err1, err2)
 }
 
 type reflectionClientV1 struct {
 	cc *grpc.ClientConn
 }
+
+func newReflectionClientV1(conf *GrpcClientConfig) (*reflectionClientV1, error) {
+	cc, err := NewGrpcClient(conf)
+	if err != nil {
+		return nil, err
+	}
+	return &reflectionClientV1{cc: cc}, nil
+}
+
+func (c *reflectionClientV1) Close() error { return c.cc.Close() }
 
 func (c *reflectionClientV1) ListServices(ctx context.Context) ([]string, error) {
 	stream, err := reflectionv1.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
@@ -205,6 +222,16 @@ func (c *reflectionClientV1) ListMethods(ctx context.Context, service string) ([
 type reflectionClientV1Alpha struct {
 	cc *grpc.ClientConn
 }
+
+func newReflectionClientV1Alpha(conf *GrpcClientConfig) (*reflectionClientV1Alpha, error) {
+	cc, err := NewGrpcClient(conf)
+	if err != nil {
+		return nil, err
+	}
+	return &reflectionClientV1Alpha{cc: cc}, nil
+}
+
+func (c *reflectionClientV1Alpha) Close() error { return c.cc.Close() }
 
 func (c *reflectionClientV1Alpha) ListServices(ctx context.Context) ([]string, error) {
 	stream, err := reflectionv1alpha.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
@@ -278,17 +305,13 @@ func extractMethods(rawDescs [][]byte, service string) ([]string, error) {
 }
 
 func querySvrList(req *GrpcMainReq) error {
-	cc, err := NewGrpcClient(&GrpcClientConfig{Host: req.Host})
-	if err != nil {
-		return fmt.Errorf("dial server: %w", err)
-	}
-	defer cc.Close()
-
-	rc, err := NewReflectionClient(cc)
+	ctx := context.Background()
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host})
 	if err != nil {
 		return err
 	}
-	names, err := rc.ListServices(context.Background())
+	defer rc.Close()
+	names, err := rc.ListServices(ctx)
 	if err != nil {
 		return err
 	}
