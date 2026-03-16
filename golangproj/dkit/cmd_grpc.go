@@ -589,13 +589,15 @@ func sendRequest(req *GrpcMainReq) error {
 
 	var callOpts []grpc.CallOption
 	var invokeReq any
-	var outputMsgDesc protoreflect.MessageDescriptor
+	var invokeResp any
+	var rawResp []byte
 
 	grpcMode := req.SubType == ""
 
 	if grpcMode {
 		var inputMsg proto.Message
-		inputMsg, _, err = BuildRequestFromJSON(ctx, req.Host, req.Method)
+		var outputMsgDesc protoreflect.MessageDescriptor
+		inputMsg, outputMsgDesc, err = BuildRequestFromJSON(ctx, req.Host, req.Method)
 		if err != nil {
 			return err
 		}
@@ -605,8 +607,10 @@ func sendRequest(req *GrpcMainReq) error {
 			}
 		}
 		invokeReq = inputMsg
+		invokeResp = dynamicpb.NewMessage(outputMsgDesc) // 默认 proto codec 需要 invokeResp 为 proto.Message
 	} else {
 		invokeReq = body
+		invokeResp = &rawResp
 		callOpts = append(callOpts, grpc.ForceCodec(NewRawCodec(req.SubType)))
 	}
 
@@ -616,27 +620,20 @@ func sendRequest(req *GrpcMainReq) error {
 	}
 	defer cc.Close()
 
-	var resp []byte
 	var header metadata.MD
 	callOpts = append(callOpts, grpc.Header(&header))
-	err = cc.Invoke(ctx, req.Method, invokeReq, &resp,
-		callOpts...,
-	)
+	err = cc.Invoke(ctx, req.Method, invokeReq, invokeResp, callOpts...)
 	if err != nil {
 		return err
 	}
 
 	printMetadata(header)
 
-	if len(resp) == 0 {
-		fmt.Fprintln(os.Stderr, "(empty response)")
-		return nil
-	}
-
 	if grpcMode {
-		outputMsg := dynamicpb.NewMessage(outputMsgDesc)
-		if err := proto.Unmarshal(resp, outputMsg); err != nil {
-			return fmt.Errorf("unmarshal proto response: %w", err)
+		outputMsg := invokeResp.(*dynamicpb.Message)
+		if proto.Size(outputMsg) == 0 {
+			fmt.Fprintln(os.Stderr, "(empty response)")
+			return nil
 		}
 		jsonBytes, err := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(outputMsg)
 		if err != nil {
@@ -646,7 +643,11 @@ func sendRequest(req *GrpcMainReq) error {
 		return nil
 	}
 
-	_, err = os.Stdout.Write(resp)
+	if len(rawResp) == 0 {
+		fmt.Fprintln(os.Stderr, "(empty response)")
+		return nil
+	}
+	_, err = os.Stdout.Write(rawResp)
 	return err
 }
 
