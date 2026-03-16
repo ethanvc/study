@@ -529,9 +529,9 @@ func querySvrList(req *GrpcMainReq) error {
 	return nil
 }
 
-// BuildRequestFromJSON 根据 host、method 通过反射解析入参类型，将 jsonBody 反序列化进该类型并序列化为 proto 字节；
-// 同时返回出参的 MessageDescriptor，供调用方将响应反序列化后转 JSON。
-func BuildRequestFromJSON(ctx context.Context, host, method string, jsonBody []byte) (reqBytes []byte, outputMsgDesc protoreflect.MessageDescriptor, err error) {
+// BuildRequestFromJSON 根据 host、method 通过反射解析入参类型，新建并返回入参对象（零值）；
+// 同时返回出参的 MessageDescriptor。不处理 body，由调用方将 JSON 反序列化进入参对象并序列化。
+func BuildRequestFromJSON(ctx context.Context, host, method string) (inputMsg proto.Message, outputMsgDesc protoreflect.MessageDescriptor, err error) {
 	svcName, methodName, err := parseMethodPath(method)
 	if err != nil {
 		return nil, nil, err
@@ -576,17 +576,7 @@ func BuildRequestFromJSON(ctx context.Context, host, method string, jsonBody []b
 		return nil, nil, fmt.Errorf("output type %s is not a message", outputTypeName)
 	}
 
-	inputMsg := dynamicpb.NewMessage(inputMsgDesc)
-	if len(jsonBody) > 0 {
-		if err := protojson.Unmarshal(jsonBody, inputMsg); err != nil {
-			return nil, nil, fmt.Errorf("unmarshal JSON request: %w", err)
-		}
-	}
-	reqBytes, err = proto.Marshal(inputMsg)
-	if err != nil {
-		return nil, nil, fmt.Errorf("marshal proto request: %w", err)
-	}
-	return reqBytes, outputMsgDescVal, nil
+	return dynamicpb.NewMessage(inputMsgDesc), outputMsgDescVal, nil
 }
 
 func sendRequest(req *GrpcMainReq) error {
@@ -603,9 +593,19 @@ func sendRequest(req *GrpcMainReq) error {
 
 	if jsonMode {
 		codecName = "proto"
-		body, outputMsgDesc, err = BuildRequestFromJSON(ctx, req.Host, req.Method, body)
+		var inputMsg proto.Message
+		inputMsg, outputMsgDesc, err = BuildRequestFromJSON(ctx, req.Host, req.Method)
 		if err != nil {
 			return err
+		}
+		if len(body) > 0 {
+			if err := protojson.Unmarshal(body, inputMsg); err != nil {
+				return fmt.Errorf("unmarshal JSON request: %w", err)
+			}
+		}
+		body, err = proto.Marshal(inputMsg)
+		if err != nil {
+			return fmt.Errorf("marshal proto request: %w", err)
 		}
 	}
 
