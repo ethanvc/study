@@ -8,9 +8,12 @@ import (
 
 	"github.com/ethanvc/study/golangproj/xobs"
 	"github.com/spf13/cobra"
+	"sort"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
 	reflectionv1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/protobuf/proto"
@@ -536,13 +539,17 @@ func sendRequest(req *GrpcMainReq) error {
 	defer cc.Close()
 
 	var resp []byte
+	var header metadata.MD
 	err = cc.Invoke(
 		context.Background(), req.Method, body, &resp,
 		grpc.ForceCodec(NewRawCodec(req.SubType)),
+		grpc.Header(&header),
 	)
 	if err != nil {
 		return err
 	}
+
+	printMetadata(header)
 
 	if len(resp) == 0 {
 		fmt.Fprintln(os.Stderr, "(empty response)")
@@ -550,6 +557,23 @@ func sendRequest(req *GrpcMainReq) error {
 	}
 	_, err = os.Stdout.Write(resp)
 	return err
+}
+
+func printMetadata(md metadata.MD) {
+	if len(md) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(md))
+	for k := range md {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		for _, v := range md[k] {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", k, v)
+		}
+	}
+	fmt.Fprintln(os.Stderr)
 }
 
 type GrpcClientConfig struct {
