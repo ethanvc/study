@@ -103,6 +103,8 @@ func queryByReflect(req *GrpcMainReq) error {
 		return querySvrList(req)
 	case "list-method":
 		return queryMethodList(req)
+	case "show-method":
+		return queryShowMethod(req)
 	}
 	return xobs.New(codes.InvalidArgument, "InvalidQueryValue").SetMsg("invalid query value")
 }
@@ -127,6 +129,7 @@ func queryMethodList(req *GrpcMainReq) error {
 type ReflectionClient interface {
 	ListServices(ctx context.Context) ([]string, error)
 	ListMethods(ctx context.Context, service string) ([]string, error)
+	GetFileDescriptorsBySymbol(ctx context.Context, symbol string) ([]*descriptorpb.FileDescriptorProto, error)
 	Close() error
 }
 
@@ -194,14 +197,14 @@ func (c *reflectionClientV1) ListServices(ctx context.Context) ([]string, error)
 	return names, nil
 }
 
-func (c *reflectionClientV1) ListMethods(ctx context.Context, service string) ([]string, error) {
+func (c *reflectionClientV1) GetFileDescriptorsBySymbol(ctx context.Context, symbol string) ([]*descriptorpb.FileDescriptorProto, error) {
 	stream, err := reflectionv1.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if err := stream.Send(&reflectionv1.ServerReflectionRequest{
 		MessageRequest: &reflectionv1.ServerReflectionRequest_FileContainingSymbol{
-			FileContainingSymbol: service,
+			FileContainingSymbol: symbol,
 		},
 	}); err != nil {
 		return nil, err
@@ -215,7 +218,15 @@ func (c *reflectionClientV1) ListMethods(ctx context.Context, service string) ([
 	if fdResp == nil {
 		return nil, fmt.Errorf("unexpected response: %v", resp.GetMessageResponse())
 	}
-	return extractMethods(fdResp.GetFileDescriptorProto(), service)
+	return parseFileDescriptors(fdResp.GetFileDescriptorProto())
+}
+
+func (c *reflectionClientV1) ListMethods(ctx context.Context, service string) ([]string, error) {
+	fds, err := c.GetFileDescriptorsBySymbol(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+	return extractMethods(fds, service)
 }
 
 type reflectionClientV1Alpha struct {
@@ -258,14 +269,14 @@ func (c *reflectionClientV1Alpha) ListServices(ctx context.Context) ([]string, e
 	return names, nil
 }
 
-func (c *reflectionClientV1Alpha) ListMethods(ctx context.Context, service string) ([]string, error) {
+func (c *reflectionClientV1Alpha) GetFileDescriptorsBySymbol(ctx context.Context, symbol string) ([]*descriptorpb.FileDescriptorProto, error) {
 	stream, err := reflectionv1alpha.NewServerReflectionClient(c.cc).ServerReflectionInfo(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if err := stream.Send(&reflectionv1alpha.ServerReflectionRequest{
 		MessageRequest: &reflectionv1alpha.ServerReflectionRequest_FileContainingSymbol{
-			FileContainingSymbol: service,
+			FileContainingSymbol: symbol,
 		},
 	}); err != nil {
 		return nil, err
@@ -279,15 +290,31 @@ func (c *reflectionClientV1Alpha) ListMethods(ctx context.Context, service strin
 	if fdResp == nil {
 		return nil, fmt.Errorf("unexpected response: %v", resp.GetMessageResponse())
 	}
-	return extractMethods(fdResp.GetFileDescriptorProto(), service)
+	return parseFileDescriptors(fdResp.GetFileDescriptorProto())
 }
 
-func extractMethods(rawDescs [][]byte, service string) ([]string, error) {
+func (c *reflectionClientV1Alpha) ListMethods(ctx context.Context, service string) ([]string, error) {
+	fds, err := c.GetFileDescriptorsBySymbol(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+	return extractMethods(fds, service)
+}
+
+func parseFileDescriptors(rawDescs [][]byte) ([]*descriptorpb.FileDescriptorProto, error) {
+	var fds []*descriptorpb.FileDescriptorProto
 	for _, raw := range rawDescs {
 		fd := &descriptorpb.FileDescriptorProto{}
 		if err := proto.Unmarshal(raw, fd); err != nil {
 			return nil, fmt.Errorf("unmarshal file descriptor: %w", err)
 		}
+		fds = append(fds, fd)
+	}
+	return fds, nil
+}
+
+func extractMethods(fds []*descriptorpb.FileDescriptorProto, service string) ([]string, error) {
+	for _, fd := range fds {
 		for _, svc := range fd.GetService() {
 			fqn := fd.GetPackage() + "." + svc.GetName()
 			if fqn != service {
@@ -301,6 +328,143 @@ func extractMethods(rawDescs [][]byte, service string) ([]string, error) {
 		}
 	}
 	return nil, fmt.Errorf("service %q not found in file descriptors", service)
+}
+
+func queryShowMethod(req *GrpcMainReq) error {
+	ctx := context.Background()
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host})
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+
+	svcName, methodName, err := parseMethodPath(req.Method)
+	if err != nil {
+		return err
+	}
+
+	fds, err := rc.GetFileDescriptorsBySymbol(ctx, svcName)
+	if err != nil {
+		return err
+	}
+
+	md, err := findMethodDescriptor(fds, svcName, methodName)
+	if err != nil {
+		return err
+	}
+
+	inputFQ := md.GetInputType()
+	outputFQ := md.GetOutputType()
+	fmt.Printf("rpc %s(%s%s) returns (%s%s)\n\n",
+		md.GetName(),
+		streamPrefix(md.GetClientStreaming()),
+		shortTypeName(inputFQ),
+		streamPrefix(md.GetServerStreaming()),
+		shortTypeName(outputFQ),
+	)
+
+	fdMap := make(map[string]*descriptorpb.FileDescriptorProto)
+	for _, fd := range fds {
+		fdMap[fd.GetName()] = fd
+	}
+
+	for _, typeFQ := range []string{inputFQ, outputFQ} {
+		if findMessageInFdMap(fdMap, typeFQ) != nil {
+			continue
+		}
+		moreFds, err := rc.GetFileDescriptorsBySymbol(ctx, strings.TrimPrefix(typeFQ, "."))
+		if err != nil {
+			continue
+		}
+		for _, fd := range moreFds {
+			fdMap[fd.GetName()] = fd
+		}
+	}
+
+	for _, typeFQ := range []string{inputFQ, outputFQ} {
+		if msg := findMessageInFdMap(fdMap, typeFQ); msg != nil {
+			printMessageDescriptor(msg, typeFQ)
+		}
+	}
+	return nil
+}
+
+func parseMethodPath(method string) (service, methodName string, err error) {
+	method = strings.TrimPrefix(method, "/")
+	idx := strings.LastIndex(method, "/")
+	if idx < 0 {
+		return "", "", fmt.Errorf("invalid method path %q, expected format: package.Service/Method", method)
+	}
+	return method[:idx], method[idx+1:], nil
+}
+
+func findMethodDescriptor(fds []*descriptorpb.FileDescriptorProto, service, method string) (*descriptorpb.MethodDescriptorProto, error) {
+	for _, fd := range fds {
+		for _, svc := range fd.GetService() {
+			fqn := fd.GetPackage() + "." + svc.GetName()
+			if fqn != service {
+				continue
+			}
+			for _, m := range svc.GetMethod() {
+				if m.GetName() == method {
+					return m, nil
+				}
+			}
+			return nil, fmt.Errorf("method %q not found in service %q", method, service)
+		}
+	}
+	return nil, fmt.Errorf("service %q not found in file descriptors", service)
+}
+
+func findMessageInFdMap(fdMap map[string]*descriptorpb.FileDescriptorProto, fqn string) *descriptorpb.DescriptorProto {
+	fqn = strings.TrimPrefix(fqn, ".")
+	for _, fd := range fdMap {
+		pkg := fd.GetPackage()
+		for _, msg := range fd.GetMessageType() {
+			if pkg+"."+msg.GetName() == fqn {
+				return msg
+			}
+		}
+	}
+	return nil
+}
+
+func printMessageDescriptor(msg *descriptorpb.DescriptorProto, fqn string) {
+	fmt.Printf("message %s {\n", shortTypeName(fqn))
+	for _, f := range msg.GetField() {
+		label := ""
+		if f.GetLabel() == descriptorpb.FieldDescriptorProto_LABEL_REPEATED {
+			label = "repeated "
+		}
+		fmt.Printf("  %s%s %s = %d;\n", label, protoFieldTypeName(f), f.GetName(), f.GetNumber())
+	}
+	fmt.Println("}")
+	fmt.Println()
+}
+
+func shortTypeName(fqn string) string {
+	fqn = strings.TrimPrefix(fqn, ".")
+	if idx := strings.LastIndex(fqn, "."); idx >= 0 {
+		return fqn[idx+1:]
+	}
+	return fqn
+}
+
+func streamPrefix(streaming bool) string {
+	if streaming {
+		return "stream "
+	}
+	return ""
+}
+
+func protoFieldTypeName(f *descriptorpb.FieldDescriptorProto) string {
+	switch f.GetType() {
+	case descriptorpb.FieldDescriptorProto_TYPE_MESSAGE,
+		descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+		return shortTypeName(f.GetTypeName())
+	default:
+		return strings.TrimPrefix(strings.ToLower(f.GetType().String()), "type_")
+	}
 }
 
 func querySvrList(req *GrpcMainReq) error {
