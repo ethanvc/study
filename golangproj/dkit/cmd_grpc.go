@@ -27,14 +27,25 @@ import (
 
 func AddGrpcCmd(rootCmd *cobra.Command) {
 	cmd := &cobra.Command{
-		Use: "grpc",
+		Use:   "grpc",
+		Short: "gRPC command-line client",
+		Long: `grpc is a command-line gRPC client that supports:
+
+  Send a request:
+    Resolve proto types via server reflection, serialize a JSON body, invoke the method,
+    and print the response as JSON. Use --sub-type to bypass reflection with a raw codec.
+
+  Reflection queries (--query):
+    list-svr    List all services exposed by the server
+    list-method List all methods of a service (requires --svr)
+    show-method Show the request/response schema of a method (requires --method)`,
 	}
-	host := cmd.Flags().String("host", "127.0.0.1:8888", "server instance address")
-	method := cmd.Flags().String("method", "/helloworld.Greeter/SayHello", "method name")
-	body := cmd.Flags().String("body", "", "request content")
-	subType := cmd.Flags().String("sub-type", "", "content sub-type (e.g. proto, json)")
-	query := cmd.Flags().String("query", "", "query type")
-	svr := cmd.Flags().String("svr", "", "server name")
+	host := cmd.Flags().String("host", "127.0.0.1:8888", "server address in host:port format")
+	method := cmd.Flags().String("method", "", "method path, e.g. /package.Service/Method")
+	body := cmd.Flags().String("body", "", "request body as JSON; prefix with @ to read from a file (e.g. @req.json)")
+	subType := cmd.Flags().String("sub-type", "", "raw codec name (e.g. proto, json); omit to auto-resolve via reflection")
+	query := cmd.Flags().String("query", "", "reflection query: list-svr | list-method | show-method")
+	svr := cmd.Flags().String("svr", "", "service name in package.Service format (required for list-method)")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return GrpcMain(&GrpcMainReq{
 			Host:    *host,
@@ -91,6 +102,59 @@ type GrpcMainReq struct {
 	Svr     string
 }
 
+var validQueryValues = map[string]bool{
+	"list-svr":    true,
+	"list-method": true,
+	"show-method": true,
+}
+
+func (r *GrpcMainReq) Validate() error {
+	if err := validateHost(r.Host); err != nil {
+		return err
+	}
+	if r.Query != "" {
+		return r.validateQueryMode()
+	}
+	return r.validateSendMode()
+}
+
+func validateHost(host string) error {
+	if strings.TrimSpace(host) == "" {
+		return xobs.New(codes.InvalidArgument, "MissingHost").SetMsg("--host must not be empty")
+	}
+	if !strings.Contains(host, ":") {
+		return xobs.New(codes.InvalidArgument, "InvalidHost").SetMsg("--host must be in host:port format")
+	}
+	return nil
+}
+
+func (r *GrpcMainReq) validateQueryMode() error {
+	if !validQueryValues[r.Query] {
+		return xobs.New(codes.InvalidArgument, "InvalidQueryValue").
+			SetMsg(fmt.Sprintf("--query %q is invalid; allowed values: list-svr | list-method | show-method", r.Query))
+	}
+	if r.Query == "list-method" && strings.TrimSpace(r.Svr) == "" {
+		return xobs.New(codes.InvalidArgument, "MissingSvr").
+			SetMsg("--svr is required when --query=list-method")
+	}
+	if r.Query == "show-method" && strings.TrimSpace(r.Method) == "" {
+		return xobs.New(codes.InvalidArgument, "MissingMethod").
+			SetMsg("--method is required when --query=show-method")
+	}
+	return nil
+}
+
+func (r *GrpcMainReq) validateSendMode() error {
+	if strings.TrimSpace(r.Method) == "" {
+		return xobs.New(codes.InvalidArgument, "MissingMethod").
+			SetMsg("--method must not be empty; expected format: /package.Service/Method")
+	}
+	if _, _, err := parseMethodPath(r.Method); err != nil {
+		return xobs.New(codes.InvalidArgument, "InvalidMethod").SetMsg(err.Error())
+	}
+	return nil
+}
+
 func resolveBody(body string) ([]byte, error) {
 	if strings.HasPrefix(body, "@") {
 		return os.ReadFile(body[1:])
@@ -99,6 +163,9 @@ func resolveBody(body string) ([]byte, error) {
 }
 
 func GrpcMain(req *GrpcMainReq) error {
+	if err := req.Validate(); err != nil {
+		return err
+	}
 	if req.Query != "" {
 		return queryByReflect(req)
 	}
@@ -113,8 +180,10 @@ func queryByReflect(req *GrpcMainReq) error {
 		return queryMethodList(req)
 	case "show-method":
 		return queryShowMethod(req)
+	default:
+		// 不可达：已由 Validate() 拦截
+		return xobs.New(codes.InvalidArgument, "InvalidQueryValue").SetMsg("invalid query value")
 	}
-	return xobs.New(codes.InvalidArgument, "InvalidQueryValue").SetMsg("invalid query value")
 }
 
 func queryMethodList(req *GrpcMainReq) error {
