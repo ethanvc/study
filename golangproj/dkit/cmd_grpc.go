@@ -651,6 +651,15 @@ func sendRequest(req *GrpcMainReq) error {
 	return err
 }
 
+func buildCodec(ctx context.Context, conf *GrpcClientConfig, subType, method string) (Codec, error) {
+
+}
+
+type Codec interface {
+	CreateReqObj(body string) any
+	GetResponseTextRepresentation(resp any) string
+}
+
 func buildDescriptorRegistry(fds []*descriptorpb.FileDescriptorProto) (*protoregistry.Files, error) {
 	files := new(protoregistry.Files)
 	fdByName := make(map[string]*descriptorpb.FileDescriptorProto, len(fds))
