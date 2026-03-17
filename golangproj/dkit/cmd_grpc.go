@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethanvc/study/golangproj/xobs"
 	"github.com/spf13/cobra"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -873,7 +872,7 @@ func printMetadataSection(section string, md metadata.MD) {
 
 type GrpcClientConfig struct {
 	Host string
-	TLS bool
+	TLS  bool
 }
 
 func NewGrpcClient(conf *GrpcClientConfig) (*grpc.ClientConn, error) {
