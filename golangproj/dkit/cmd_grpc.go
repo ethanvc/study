@@ -2,6 +2,7 @@ package dkit
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"sort"
@@ -12,6 +13,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	reflectionv1 "google.golang.org/grpc/reflection/grpc_reflection_v1"
@@ -46,6 +48,7 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	subType := cmd.Flags().String("sub-type", "", "raw codec name (e.g. proto, json); omit to auto-resolve via reflection")
 	query := cmd.Flags().String("query", "", "reflection query: list-svr | list-method | show-method")
 	svr := cmd.Flags().String("svr", "", "service name in package.Service format (required for list-method)")
+	tls := cmd.Flags().Bool("tls", false, "enable TLS; by default the connection is plaintext")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return GrpcMain(&GrpcMainReq{
 			Host:    *host,
@@ -54,6 +57,7 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 			SubType: *subType,
 			Query:   *query,
 			Svr:     *svr,
+			TLS:     *tls,
 		})
 	}
 	rootCmd.AddCommand(cmd)
@@ -100,6 +104,7 @@ type GrpcMainReq struct {
 	SubType string
 	Query   string
 	Svr     string
+	TLS     bool
 }
 
 var validQueryValues = map[string]bool{
@@ -188,7 +193,7 @@ func queryByReflect(req *GrpcMainReq) error {
 
 func queryMethodList(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS})
 	if err != nil {
 		return err
 	}
@@ -409,7 +414,7 @@ func extractMethods(fds []*descriptorpb.FileDescriptorProto, service string) ([]
 
 func queryShowMethod(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS})
 	if err != nil {
 		return err
 	}
@@ -583,7 +588,7 @@ func protoFieldTypeName(f *descriptorpb.FieldDescriptorProto) string {
 
 func querySvrList(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS})
 	if err != nil {
 		return err
 	}
@@ -598,14 +603,15 @@ func querySvrList(req *GrpcMainReq) error {
 	return nil
 }
 
-// BuildRequestFromJSON 根据 host、method 通过反射解析入参类型，新建并返回入参对象（零值）；
-// 同时返回出参的 MessageDescriptor。不处理 body，由调用方将 JSON 反序列化进入参对象并序列化。
-func BuildRequestFromJSON(ctx context.Context, host, method string) (inputMsg proto.Message, outputMsgDesc protoreflect.MessageDescriptor, err error) {
+// BuildRequestFromJSON resolves the proto types for method via server reflection,
+// and returns a zero-value input message and the output message descriptor.
+// The caller is responsible for unmarshaling the JSON body into the returned input message.
+func BuildRequestFromJSON(ctx context.Context, conf *GrpcClientConfig, method string) (inputMsg proto.Message, outputMsgDesc protoreflect.MessageDescriptor, err error) {
 	svcName, methodName, err := parseMethodPath(method)
 	if err != nil {
 		return nil, nil, err
 	}
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: host})
+	rc, err := NewReflectionClient(ctx, conf)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -656,7 +662,7 @@ func sendRequest(req *GrpcMainReq) error {
 		return fmt.Errorf("read body: %w", err)
 	}
 
-	conf := &GrpcClientConfig{Host: req.Host}
+	conf := &GrpcClientConfig{Host: req.Host, TLS: req.TLS}
 	codec, err := buildCodec(ctx, conf, req.SubType, req.Method)
 	if err != nil {
 		return err
@@ -713,7 +719,7 @@ type Codec interface {
 
 func buildCodec(ctx context.Context, conf *GrpcClientConfig, subType, method string) (Codec, error) {
 	if subType == "" {
-		inputMsg, outputMsgDesc, err := BuildRequestFromJSON(ctx, conf.Host, method)
+		inputMsg, outputMsgDesc, err := BuildRequestFromJSON(ctx, conf, method)
 		if err != nil {
 			return nil, err
 		}
@@ -857,9 +863,17 @@ func printMetadata(md metadata.MD) {
 
 type GrpcClientConfig struct {
 	Host string
+	TLS bool
 }
 
 func NewGrpcClient(conf *GrpcClientConfig) (*grpc.ClientConn, error) {
-	cc, err := grpc.NewClient(conf.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	return cc, err
+	creds := transportCredentials(conf.TLS)
+	return grpc.NewClient(conf.Host, grpc.WithTransportCredentials(creds))
+}
+
+func transportCredentials(tlsEnabled bool) credentials.TransportCredentials {
+	if tlsEnabled {
+		return credentials.NewTLS(&tls.Config{})
+	}
+	return insecure.NewCredentials()
 }
