@@ -612,10 +612,9 @@ func querySvrList(req *GrpcMainReq) error {
 	return nil
 }
 
-// BuildRequestFromJSON resolves the proto types for method via server reflection,
-// and returns a zero-value input message and the output message descriptor.
-// The caller is responsible for unmarshaling the JSON body into the returned input message.
-func BuildRequestFromJSON(ctx context.Context, conf *GrpcClientConfig, method string) (inputMsg proto.Message, outputMsgDesc protoreflect.MessageDescriptor, err error) {
+// resolveMethodMessages uses server reflection to look up the input and output proto message
+// types for the given method, returning a zero-value input message and the output descriptor.
+func resolveMethodMessages(ctx context.Context, conf *GrpcClientConfig, method string) (inputMsg proto.Message, outputMsgDesc protoreflect.MessageDescriptor, err error) {
 	svcName, methodName, err := parseMethodPath(method)
 	if err != nil {
 		return nil, nil, err
@@ -729,7 +728,7 @@ type Codec interface {
 
 func buildCodec(ctx context.Context, conf *GrpcClientConfig, subType, method string) (Codec, error) {
 	if subType == "" {
-		inputMsg, outputMsgDesc, err := BuildRequestFromJSON(ctx, conf, method)
+		inputMsg, outputMsgDesc, err := resolveMethodMessages(ctx, conf, method)
 		if err != nil {
 			return nil, err
 		}
