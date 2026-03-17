@@ -683,8 +683,8 @@ func sendRequest(req *GrpcMainReq) error {
 	}
 	reply := codec.CreateReplyTarget()
 
-	var header metadata.MD
-	callOpts := []grpc.CallOption{grpc.Header(&header)}
+	var header, trailer metadata.MD
+	callOpts := []grpc.CallOption{grpc.Header(&header), grpc.Trailer(&trailer)}
 	if opt := codec.GrpcCallOption(); opt != nil {
 		callOpts = append(callOpts, opt)
 	}
@@ -700,7 +700,8 @@ func sendRequest(req *GrpcMainReq) error {
 		return err
 	}
 
-	printMetadata(header)
+	printMetadataSection("header", header)
+	printMetadataSection("trailer", trailer)
 
 	out, err := codec.GetResponseOutput(reply)
 	if err != nil {
@@ -853,10 +854,11 @@ func (r *fallbackResolver) FindDescriptorByName(name protoreflect.FullName) (pro
 	return r.fallback.FindDescriptorByName(name)
 }
 
-func printMetadata(md metadata.MD) {
+func printMetadataSection(section string, md metadata.MD) {
 	if len(md) == 0 {
 		return
 	}
+	fmt.Fprintf(os.Stderr, "-- %s --\n", section)
 	keys := make([]string, 0, len(md))
 	for k := range md {
 		keys = append(keys, k)
