@@ -587,77 +587,130 @@ func sendRequest(req *GrpcMainReq) error {
 		return fmt.Errorf("read body: %w", err)
 	}
 
-	var callOpts []grpc.CallOption
-	var invokeReq any
-	var invokeResp any
-	var rawResp []byte
-
-	grpcMode := req.SubType == ""
-
-	if grpcMode {
-		var inputMsg proto.Message
-		var outputMsgDesc protoreflect.MessageDescriptor
-		inputMsg, outputMsgDesc, err = BuildRequestFromJSON(ctx, req.Host, req.Method)
-		if err != nil {
-			return err
-		}
-		if len(body) > 0 {
-			if err := protojson.Unmarshal(body, inputMsg); err != nil {
-				return fmt.Errorf("unmarshal proto-json request: %w", err)
-			}
-		}
-		invokeReq = inputMsg
-		invokeResp = dynamicpb.NewMessage(outputMsgDesc) // 默认 proto codec 需要 invokeResp 为 proto.Message
-	} else {
-		invokeReq = body
-		invokeResp = &rawResp
-		callOpts = append(callOpts, grpc.ForceCodec(NewRawCodec(req.SubType)))
+	conf := &GrpcClientConfig{Host: req.Host}
+	codec, err := buildCodec(ctx, conf, req.SubType, req.Method)
+	if err != nil {
+		return err
 	}
 
-	cc, err := NewGrpcClient(&GrpcClientConfig{Host: req.Host})
+	invokeReq, err := codec.CreateReqObj(body)
+	if err != nil {
+		return err
+	}
+	reply := codec.CreateReplyTarget()
+
+	var header metadata.MD
+	callOpts := []grpc.CallOption{grpc.Header(&header)}
+	if opt := codec.GrpcCallOption(); opt != nil {
+		callOpts = append(callOpts, opt)
+	}
+
+	cc, err := NewGrpcClient(conf)
 	if err != nil {
 		return fmt.Errorf("dial server: %w", err)
 	}
 	defer cc.Close()
 
-	var header metadata.MD
-	callOpts = append(callOpts, grpc.Header(&header))
-	err = cc.Invoke(ctx, req.Method, invokeReq, invokeResp, callOpts...)
+	err = cc.Invoke(ctx, req.Method, invokeReq, reply, callOpts...)
 	if err != nil {
 		return err
 	}
 
 	printMetadata(header)
 
-	if grpcMode {
-		outputMsg := invokeResp.(*dynamicpb.Message)
-		if proto.Size(outputMsg) == 0 {
-			fmt.Fprintln(os.Stderr, "(empty response)")
-			return nil
-		}
-		jsonBytes, err := protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(outputMsg)
-		if err != nil {
-			return fmt.Errorf("marshal JSON response: %w", err)
-		}
-		fmt.Println(string(jsonBytes))
-		return nil
+	out, err := codec.GetResponseOutput(reply)
+	if err != nil {
+		return err
 	}
-
-	if len(rawResp) == 0 {
+	if len(out) == 0 {
 		fmt.Fprintln(os.Stderr, "(empty response)")
 		return nil
 	}
-	_, err = os.Stdout.Write(rawResp)
+	_, err = os.Stdout.Write(out)
 	return err
 }
 
-func buildCodec(ctx context.Context, conf *GrpcClientConfig, subType, method string) (Codec, error) {
-
+// Codec 封装请求构造、响应解析与 gRPC 调用选项，供 sendRequest 统一调用。
+type Codec interface {
+	// CreateReqObj 根据 body 构造 Invoke 的请求体（proto.Message 或 []byte）。
+	CreateReqObj(body []byte) (any, error)
+	// CreateReplyTarget 返回 Invoke 的 reply 参数（如 *dynamicpb.Message 或 *[]byte）。
+	CreateReplyTarget() any
+	// GrpcCallOption 返回本次调用需要的 CallOption，nil 表示使用默认 proto codec。
+	GrpcCallOption() grpc.CallOption
+	// GetResponseOutput 将 Invoke 后的 reply 转为要输出到 stdout 的字节；空响应可返回 nil/空。
+	GetResponseOutput(resp any) ([]byte, error)
 }
 
-type Codec interface {
-	CreateReqObj(body string) any
-	GetResponseTextRepresentation(resp any) string
+func buildCodec(ctx context.Context, conf *GrpcClientConfig, subType, method string) (Codec, error) {
+	if subType == "" {
+		inputMsg, outputMsgDesc, err := BuildRequestFromJSON(ctx, conf.Host, method)
+		if err != nil {
+			return nil, err
+		}
+		// inputMsg 已按 method 建好，仅需其 descriptor 以便 CreateReqObj 时新建实例
+		inputMsgDesc := inputMsg.ProtoReflect().Descriptor()
+		return &protoJSONCodec{
+			inputMsgDesc:  inputMsgDesc,
+			outputMsgDesc: outputMsgDesc,
+		}, nil
+	}
+	return &rawCodec{subType: subType}, nil
+}
+
+type protoJSONCodec struct {
+	inputMsgDesc  protoreflect.MessageDescriptor
+	outputMsgDesc protoreflect.MessageDescriptor
+}
+
+func (c *protoJSONCodec) CreateReqObj(body []byte) (any, error) {
+	msg := dynamicpb.NewMessage(c.inputMsgDesc)
+	if len(body) > 0 {
+		if err := protojson.Unmarshal(body, msg); err != nil {
+			return nil, fmt.Errorf("unmarshal proto-json request: %w", err)
+		}
+	}
+	return msg, nil
+}
+
+func (c *protoJSONCodec) CreateReplyTarget() any {
+	return dynamicpb.NewMessage(c.outputMsgDesc)
+}
+
+func (c *protoJSONCodec) GrpcCallOption() grpc.CallOption {
+	return nil
+}
+
+func (c *protoJSONCodec) GetResponseOutput(resp any) ([]byte, error) {
+	msg := resp.(*dynamicpb.Message)
+	if proto.Size(msg) == 0 {
+		return nil, nil
+	}
+	return protojson.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(msg)
+}
+
+type rawCodec struct {
+	subType string
+}
+
+func (c *rawCodec) CreateReqObj(body []byte) (any, error) {
+	return body, nil
+}
+
+func (c *rawCodec) CreateReplyTarget() any {
+	return &[]byte{}
+}
+
+func (c *rawCodec) GrpcCallOption() grpc.CallOption {
+	return grpc.ForceCodec(NewRawCodec(c.subType))
+}
+
+func (c *rawCodec) GetResponseOutput(resp any) ([]byte, error) {
+	out := *resp.(*[]byte)
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 func buildDescriptorRegistry(fds []*descriptorpb.FileDescriptorProto) (*protoregistry.Files, error) {
