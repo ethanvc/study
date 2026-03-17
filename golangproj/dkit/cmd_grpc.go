@@ -186,7 +186,7 @@ func queryByReflect(req *GrpcMainReq) error {
 	case "show-method":
 		return queryShowMethod(req)
 	default:
-		// 不可达：已由 Validate() 拦截
+		// unreachable: already rejected by Validate()
 		return xobs.New(codes.InvalidArgument, "InvalidQueryValue").SetMsg("invalid query value")
 	}
 }
@@ -713,15 +713,15 @@ func sendRequest(req *GrpcMainReq) error {
 	return err
 }
 
-// Codec 封装请求构造、响应解析与 gRPC 调用选项，供 sendRequest 统一调用。
+// Codec abstracts request construction, response parsing, and gRPC call options for sendRequest.
 type Codec interface {
-	// CreateReqObj 根据 body 构造 Invoke 的请求体（proto.Message 或 []byte）。
+	// CreateReqObj builds the Invoke request value (proto.Message or []byte) from body.
 	CreateReqObj(body []byte) (any, error)
-	// CreateReplyTarget 返回 Invoke 的 reply 参数（如 *dynamicpb.Message 或 *[]byte）。
+	// CreateReplyTarget returns the reply target passed to Invoke (e.g. *dynamicpb.Message or *[]byte).
 	CreateReplyTarget() any
-	// GrpcCallOption 返回本次调用需要的 CallOption，nil 表示使用默认 proto codec。
+	// GrpcCallOption returns an additional CallOption for the call, or nil to use the default proto codec.
 	GrpcCallOption() grpc.CallOption
-	// GetResponseOutput 将 Invoke 后的 reply 转为要输出到 stdout 的字节；空响应可返回 nil/空。
+	// GetResponseOutput converts the Invoke reply into bytes to write to stdout; may return nil for empty responses.
 	GetResponseOutput(resp any) ([]byte, error)
 }
 
@@ -731,7 +731,7 @@ func buildCodec(ctx context.Context, conf *GrpcClientConfig, subType, method str
 		if err != nil {
 			return nil, err
 		}
-		// inputMsg 已按 method 建好，仅需其 descriptor 以便 CreateReqObj 时新建实例
+		// Only the descriptor is needed; a fresh instance is created in CreateReqObj.
 		inputMsgDesc := inputMsg.ProtoReflect().Descriptor()
 		return &protoJSONCodec{
 			inputMsgDesc:  inputMsgDesc,
