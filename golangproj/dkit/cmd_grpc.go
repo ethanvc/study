@@ -28,6 +28,7 @@ import (
 )
 
 func AddGrpcCmd(rootCmd *cobra.Command) {
+	// can use https://grpcb.in/ to test this command
 	cmd := &cobra.Command{
 		Use:   "grpc",
 		Short: "gRPC command-line client",
