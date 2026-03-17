@@ -496,6 +496,14 @@ func (r *messageResolver) resolveAndPrint(typeFQ string) {
 	}
 }
 
+// normalizeMethodPath ensures the path starts with "/" as required by HTTP/2 :path.
+func normalizeMethodPath(method string) string {
+	if !strings.HasPrefix(method, "/") {
+		return "/" + method
+	}
+	return method
+}
+
 func parseMethodPath(method string) (service, methodName string, err error) {
 	method = strings.TrimPrefix(method, "/")
 	idx := strings.LastIndex(method, "/")
@@ -686,7 +694,7 @@ func sendRequest(req *GrpcMainReq) error {
 	}
 	defer cc.Close()
 
-	err = cc.Invoke(ctx, req.Method, invokeReq, reply, callOpts...)
+	err = cc.Invoke(ctx, normalizeMethodPath(req.Method), invokeReq, reply, callOpts...)
 	if err != nil {
 		return err
 	}
