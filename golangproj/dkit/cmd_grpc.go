@@ -49,15 +49,17 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	query := cmd.Flags().String("query", "", "reflection query: list-svr | list-method | show-method")
 	svr := cmd.Flags().String("svr", "", "service name in package.Service format (required for list-method)")
 	tls := cmd.Flags().Bool("tls", false, "enable TLS; by default the connection is plaintext")
+	initConnWin := cmd.Flags().Int32("initial-conn-window-size", 0, "HTTP/2 initial connection flow-control window (bytes); 0 uses gRPC default")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return GrpcMain(&GrpcMainReq{
-			Host:    *host,
-			Body:    *body,
-			Method:  *method,
-			SubType: *subType,
-			Query:   *query,
-			Svr:     *svr,
-			TLS:     *tls,
+			Host:                   *host,
+			Body:                   *body,
+			Method:                 *method,
+			SubType:                *subType,
+			Query:                  *query,
+			Svr:                    *svr,
+			TLS:                    *tls,
+			InitialConnWindowSize:  *initConnWin,
 		})
 	}
 	rootCmd.AddCommand(cmd)
@@ -98,13 +100,14 @@ func (c *RawCodec) Name() string {
 }
 
 type GrpcMainReq struct {
-	Host    string
-	Body    string
-	Method  string
-	SubType string
-	Query   string
-	Svr     string
-	TLS     bool
+	Host                  string
+	Body                  string
+	Method                string
+	SubType               string
+	Query                 string
+	Svr                   string
+	TLS                   bool
+	InitialConnWindowSize int32 // 0: omit WithInitialConnWindowSize
 }
 
 var validQueryValues = map[string]bool{
@@ -193,7 +196,7 @@ func queryByReflect(req *GrpcMainReq) error {
 
 func queryMethodList(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize})
 	if err != nil {
 		return err
 	}
@@ -414,7 +417,7 @@ func extractMethods(fds []*descriptorpb.FileDescriptorProto, service string) ([]
 
 func queryShowMethod(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize})
 	if err != nil {
 		return err
 	}
@@ -596,7 +599,7 @@ func protoFieldTypeName(f *descriptorpb.FieldDescriptorProto) string {
 
 func querySvrList(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize})
 	if err != nil {
 		return err
 	}
@@ -669,7 +672,7 @@ func sendRequest(req *GrpcMainReq) error {
 		return fmt.Errorf("read body: %w", err)
 	}
 
-	conf := &GrpcClientConfig{Host: req.Host, TLS: req.TLS}
+	conf := &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize}
 	codec, err := buildCodec(ctx, conf, req.SubType, req.Method)
 	if err != nil {
 		return err
@@ -871,13 +874,18 @@ func printMetadataSection(section string, md metadata.MD) {
 }
 
 type GrpcClientConfig struct {
-	Host string
-	TLS  bool
+	Host                  string
+	TLS                   bool
+	InitialConnWindowSize int32
 }
 
 func NewGrpcClient(conf *GrpcClientConfig) (*grpc.ClientConn, error) {
 	creds := transportCredentials(conf.TLS)
-	return grpc.NewClient(conf.Host, grpc.WithTransportCredentials(creds))
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}
+	if conf.InitialConnWindowSize > 0 {
+		opts = append(opts, grpc.WithInitialConnWindowSize(conf.InitialConnWindowSize))
+	}
+	return grpc.NewClient(conf.Host, opts...)
 }
 
 func transportCredentials(tlsEnabled bool) credentials.TransportCredentials {
