@@ -8,3 +8,4 @@ golangproj/dkit/cmd/dkit/main
 /*/target/CACHEDIR.TAG
 .gemini/
 *.test.json
+*.tmp.txt
