@@ -50,16 +50,18 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	svr := cmd.Flags().String("svr", "", "service name in package.Service format (required for list-method)")
 	tls := cmd.Flags().Bool("tls", false, "enable TLS; by default the connection is plaintext")
 	initConnWin := cmd.Flags().Int32("initial-conn-window-size", 0, "HTTP/2 initial connection flow-control window (bytes); 0 uses gRPC default")
+	initWin := cmd.Flags().Int32("initial-window-size", 0, "HTTP/2 initial stream flow-control window (bytes); 0 uses gRPC default")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return GrpcMain(&GrpcMainReq{
-			Host:                   *host,
-			Body:                   *body,
-			Method:                 *method,
-			SubType:                *subType,
-			Query:                  *query,
-			Svr:                    *svr,
-			TLS:                    *tls,
-			InitialConnWindowSize:  *initConnWin,
+			Host:                  *host,
+			Body:                  *body,
+			Method:                *method,
+			SubType:               *subType,
+			Query:                 *query,
+			Svr:                   *svr,
+			TLS:                   *tls,
+			InitialConnWindowSize: *initConnWin,
+			InitialWindowSize:     *initWin,
 		})
 	}
 	rootCmd.AddCommand(cmd)
@@ -108,6 +110,7 @@ type GrpcMainReq struct {
 	Svr                   string
 	TLS                   bool
 	InitialConnWindowSize int32 // 0: omit WithInitialConnWindowSize
+	InitialWindowSize     int32 // 0: omit WithInitialWindowSize
 }
 
 var validQueryValues = map[string]bool{
@@ -196,7 +199,7 @@ func queryByReflect(req *GrpcMainReq) error {
 
 func queryMethodList(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize, InitialWindowSize: req.InitialWindowSize})
 	if err != nil {
 		return err
 	}
@@ -417,7 +420,7 @@ func extractMethods(fds []*descriptorpb.FileDescriptorProto, service string) ([]
 
 func queryShowMethod(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize, InitialWindowSize: req.InitialWindowSize})
 	if err != nil {
 		return err
 	}
@@ -599,7 +602,7 @@ func protoFieldTypeName(f *descriptorpb.FieldDescriptorProto) string {
 
 func querySvrList(req *GrpcMainReq) error {
 	ctx := context.Background()
-	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize})
+	rc, err := NewReflectionClient(ctx, &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize, InitialWindowSize: req.InitialWindowSize})
 	if err != nil {
 		return err
 	}
@@ -672,7 +675,7 @@ func sendRequest(req *GrpcMainReq) error {
 		return fmt.Errorf("read body: %w", err)
 	}
 
-	conf := &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize}
+	conf := &GrpcClientConfig{Host: req.Host, TLS: req.TLS, InitialConnWindowSize: req.InitialConnWindowSize, InitialWindowSize: req.InitialWindowSize}
 	codec, err := buildCodec(ctx, conf, req.SubType, req.Method)
 	if err != nil {
 		return err
@@ -877,6 +880,7 @@ type GrpcClientConfig struct {
 	Host                  string
 	TLS                   bool
 	InitialConnWindowSize int32
+	InitialWindowSize     int32
 }
 
 func NewGrpcClient(conf *GrpcClientConfig) (*grpc.ClientConn, error) {
@@ -884,6 +888,9 @@ func NewGrpcClient(conf *GrpcClientConfig) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(creds)}
 	if conf.InitialConnWindowSize > 0 {
 		opts = append(opts, grpc.WithInitialConnWindowSize(conf.InitialConnWindowSize))
+	}
+	if conf.InitialWindowSize > 0 {
+		opts = append(opts, grpc.WithInitialWindowSize(conf.InitialWindowSize))
 	}
 	return grpc.NewClient(conf.Host, opts...)
 }
