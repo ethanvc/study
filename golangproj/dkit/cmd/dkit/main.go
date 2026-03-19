@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/ethanvc/study/golangproj/dkit"
+	"github.com/ethanvc/study/golangproj/xobs"
 	"github.com/spf13/cobra"
 )
 
@@ -11,6 +13,8 @@ import (
 // GOBIN=$(pwd) go install github.com/ethanvc/study/golangproj/dkit/cmd/dkit@latest
 // GOPROXY=direct GOBIN=$(pwd) go install github.com/ethanvc/study/golangproj/dkit/cmd/dkit@latest
 func main() {
+	ctx := context.Background()
+	xobs.LogInfo(ctx, "dkit start")
 	rootCmd := &cobra.Command{
 		Use:          "dkit",
 		Short:        "dkit",
