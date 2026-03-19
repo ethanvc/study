@@ -9,5 +9,7 @@ golangproj/dkit/cmd/dkit/main
 .gemini/
 *.test.json
 *.tmp.txt
-.vscode/
+.vscode/*
+!.vscode/launch.json
+/bin/
 *.log

@@ -1,0 +1,49 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "dkit: grpc send request",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/golangproj/dkit/cmd/dkit",
+      "outputFilePath": "${workspaceFolder}/bin/dkit",
+      "args": [
+        "grpc",
+        "--host", "grpcb.in:9001",
+        "--tls",
+        "--method", "/hello.HelloService/SayHello",
+        "--body", "{\"greeting\":\"hello\"}"
+      ]
+    },
+    {
+      "name": "dkit: grpc list services",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/golangproj/dkit/cmd/dkit",
+      "outputFilePath": "${workspaceFolder}/bin/dkit",
+      "args": [
+        "grpc",
+        "--host", "grpcb.in:9001",
+        "--tls",
+        "--query", "list-svr"
+      ]
+    },
+    {
+      "name": "dkit: grpc list methods",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/golangproj/dkit/cmd/dkit",
+      "outputFilePath": "${workspaceFolder}/bin/dkit",
+      "args": [
+        "grpc",
+        "--host", "grpcb.in:9001",
+        "--tls",
+        "--query", "list-method",
+        "--svr", "hello.HelloService"
+      ]
+    }
+  ]
+}
