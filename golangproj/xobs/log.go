@@ -55,7 +55,7 @@ func (oc *ObsContext) GetLogger() *Logger {
 		}
 		oc = oc.parent
 	}
-	return defaultLogger
+	panic("never come here")
 }
 
 func (oc *ObsContext) GetLvl() slog.Level {
@@ -95,27 +95,23 @@ func (l *Logger) LogRaw(ctx context.Context, obsCtx *ObsContext, skip int, lvl s
 	l.h.Handle(ctx, record)
 }
 
-var defaultObCtx = &ObsContext{
-	span: &Span{
-		name: "default",
-	},
-}
-
-var defaultLogger = &Logger{
-	h: slog.NewJSONHandler(os.Stderr, nil),
-}
-
-func init() {
+// newDefaultLogHandler 创建默认日志输出：优先写入 log/obs.log，失败则退回 stderr。
+func newDefaultLogHandler() slog.Handler {
 	if err := os.MkdirAll("log", 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "fatal error: create log directory: %v\n", err)
-		return
+		return slog.NewJSONHandler(os.Stderr, nil)
 	}
 	f, err := os.OpenFile("log/obs.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "fatal error: open log file: %v\n", err)
-		return
+		return slog.NewJSONHandler(os.Stderr, nil)
 	}
-	defaultLogger = &Logger{
-		h: slog.NewJSONHandler(f, nil),
-	}
+	return slog.NewJSONHandler(f, nil)
+}
+
+var defaultObCtx = &ObsContext{
+	span: &Span{
+		name: "default",
+	},
+	logger: &Logger{h: newDefaultLogHandler()},
 }
