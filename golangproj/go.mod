@@ -3,6 +3,7 @@ module github.com/ethanvc/study/golangproj
 go 1.24.0
 
 require (
+	github.com/klauspost/compress v1.18.5
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.77.0
