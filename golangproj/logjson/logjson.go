@@ -1,6 +1,6 @@
 package logjson
 
-import "github.com/ethanvc/study/golangproj/logjson/internal/json/v2"
+import "github.com/ethanvc/study/golangproj/logjson/internal/gostd/encoding/json/v2"
 
 type LogJson struct{}
 

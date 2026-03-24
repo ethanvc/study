@@ -1,8 +1,8 @@
 package logjson
 
 import (
-	"github.com/ethanvc/study/golangproj/logjson/internal/json"
-	"github.com/ethanvc/study/golangproj/logjson/internal/json/jsontext"
+	"github.com/ethanvc/study/golangproj/logjson/internal/gostd/encoding/json"
+	"github.com/ethanvc/study/golangproj/logjson/internal/gostd/encoding/json/jsontext"
 )
 
 type Options = json.Options

@@ -13,8 +13,12 @@ import shutil
 import sys
 
 MODULE = "github.com/ethanvc/study/golangproj"
+GOSTD_PREFIX = f"{MODULE}/logjson/internal/gostd"
 
+# Directories to copy (relative to encoding/json/).
+# "." means the root encoding/json/ directory itself.
 COPY_DIRS = [
+    (".", "."),
     ("v2", "v2"),
     ("jsontext", "jsontext"),
     ("internal", "internal"),
@@ -24,25 +28,37 @@ COPY_DIRS = [
     ("internal/jsontest", "internal/jsontest"),
 ]
 
+# Import path replacements (longest first to avoid partial matches).
+# The last entry handles self-referencing imports in root-level test files.
 IMPORT_REPLACEMENTS = [
-    ("encoding/json/internal/jsonflags", f"{MODULE}/logjson/internal/gostd/json/internal/jsonflags"),
-    ("encoding/json/internal/jsonopts", f"{MODULE}/logjson/internal/gostd/json/internal/jsonopts"),
-    ("encoding/json/internal/jsonwire", f"{MODULE}/logjson/internal/gostd/json/internal/jsonwire"),
-    ("encoding/json/internal/jsontest", f"{MODULE}/logjson/internal/gostd/json/internal/jsontest"),
-    ("encoding/json/internal", f"{MODULE}/logjson/internal/gostd/json/internal"),
-    ("encoding/json/jsontext", f"{MODULE}/logjson/internal/gostd/json/jsontext"),
-    ("encoding/json/v2", f"{MODULE}/logjson/internal/gostd/json/v2"),
+    ("encoding/json/internal/jsonflags", f"{GOSTD_PREFIX}/encoding/json/internal/jsonflags"),
+    ("encoding/json/internal/jsonopts", f"{GOSTD_PREFIX}/encoding/json/internal/jsonopts"),
+    ("encoding/json/internal/jsonwire", f"{GOSTD_PREFIX}/encoding/json/internal/jsonwire"),
+    ("encoding/json/internal/jsontest", f"{GOSTD_PREFIX}/encoding/json/internal/jsontest"),
+    ("encoding/json/internal", f"{GOSTD_PREFIX}/encoding/json/internal"),
+    ("encoding/json/jsontext", f"{GOSTD_PREFIX}/encoding/json/jsontext"),
+    ("encoding/json/v2", f"{GOSTD_PREFIX}/encoding/json/v2"),
+    ("encoding/json", f"{GOSTD_PREFIX}/encoding/json"),
 ]
 
 ZSTD_OLD_IMPORT = '"internal/zstd"'
 ZSTD_NEW_IMPORT = '"github.com/klauspost/compress/zstd"'
 
-BUILD_TAG_LINE = "//go:build goexperiment.jsonv2"
+BUILD_TAG_V2 = "//go:build goexperiment.jsonv2"
+BUILD_TAG_NOT_V2 = "//go:build !goexperiment.jsonv2"
 
 
 # ---------------------------------------------------------------------------
 # Go source transformations
 # ---------------------------------------------------------------------------
+
+def should_skip_file(content: str) -> bool:
+    """Skip v1-only files that have //go:build !goexperiment.jsonv2."""
+    for line in content.split("\n")[:15]:
+        if line.strip() == BUILD_TAG_NOT_V2:
+            return True
+    return False
+
 
 def rewrite_imports(content: str) -> str:
     for old, new in IMPORT_REPLACEMENTS:
@@ -55,7 +71,7 @@ def remove_build_tag(content: str) -> str:
     out = []
     skip_next_blank = False
     for line in lines:
-        if line.strip() == BUILD_TAG_LINE:
+        if line.strip() == BUILD_TAG_V2:
             skip_next_blank = True
             continue
         if skip_next_blank and line.strip() == "":
@@ -86,9 +102,13 @@ def fix_zstd_usage(content: str) -> str:
     return content
 
 
-def process_go_file(src_path: str, dst_path: str, is_jsontest_testdata: bool):
+def process_go_file(src_path: str, dst_path: str, is_jsontest_testdata: bool) -> bool:
+    """Read, transform, and write a .go file. Returns False if skipped."""
     with open(src_path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    if should_skip_file(content):
+        return False
 
     content = remove_build_tag(content)
     content = rewrite_imports(content)
@@ -98,6 +118,7 @@ def process_go_file(src_path: str, dst_path: str, is_jsontest_testdata: bool):
     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
     with open(dst_path, "w", encoding="utf-8") as f:
         f.write(content)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +126,7 @@ def process_go_file(src_path: str, dst_path: str, is_jsontest_testdata: bool):
 # ---------------------------------------------------------------------------
 
 def copy_directory(src_dir: str, dst_dir: str, recurse_subdirs: bool, jsontest_dir: str):
-    copied = 0
+    copied, skipped = 0, 0
     for entry in sorted(os.listdir(src_dir)):
         src_path = os.path.join(src_dir, entry)
 
@@ -116,10 +137,12 @@ def copy_directory(src_dir: str, dst_dir: str, recurse_subdirs: bool, jsontest_d
                 print(f"  copied testdata/ -> {dst_td}")
                 copied += 1
             elif recurse_subdirs:
-                copied += copy_directory(
+                c, s = copy_directory(
                     src_path, os.path.join(dst_dir, entry),
                     recurse_subdirs=True, jsontest_dir=jsontest_dir,
                 )
+                copied += c
+                skipped += s
             continue
 
         if not os.path.isfile(src_path):
@@ -131,13 +154,16 @@ def copy_directory(src_dir: str, dst_dir: str, recurse_subdirs: bool, jsontest_d
                 os.path.normpath(src_dir) == os.path.normpath(jsontest_dir)
                 and entry == "testdata.go"
             )
-            process_go_file(src_path, dst_path, is_jsontest_testdata)
+            if process_go_file(src_path, dst_path, is_jsontest_testdata):
+                copied += 1
+            else:
+                skipped += 1
         else:
             os.makedirs(os.path.dirname(dst_path), exist_ok=True)
             shutil.copy2(src_path, dst_path)
-        copied += 1
+            copied += 1
 
-    return copied
+    return copied, skipped
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +189,7 @@ def resolve_paths(go_src: str):
         sys.exit(1)
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_base = os.path.join(script_dir, "json")
+    output_base = os.path.join(script_dir, "encoding", "json")
     jsontest_dir = os.path.join(json_src, "internal", "jsontest")
     return json_src, output_base, jsontest_dir
 
@@ -175,19 +201,30 @@ def clean_output(output_base: str):
 
 
 def copy_all(json_src: str, output_base: str, jsontest_dir: str):
-    total = 0
+    total_copied, total_skipped = 0, 0
     for src_rel, dst_rel in COPY_DIRS:
-        src_dir = os.path.join(json_src, src_rel)
-        dst_dir = os.path.join(output_base, dst_rel)
+        if src_rel == ".":
+            src_dir = json_src
+        else:
+            src_dir = os.path.join(json_src, src_rel)
+        if dst_rel == ".":
+            dst_dir = output_base
+        else:
+            dst_dir = os.path.join(output_base, dst_rel)
 
         if not os.path.isdir(src_dir):
             print(f"WARNING: {src_dir} not found, skipping", file=sys.stderr)
             continue
 
-        recurse = src_rel != "internal"
-        print(f"Copying {src_rel}/ -> {dst_rel}/")
-        total += copy_directory(src_dir, dst_dir, recurse_subdirs=recurse, jsontest_dir=jsontest_dir)
-    return total
+        # "." and "internal" don't recurse (subdirs listed separately).
+        recurse = src_rel not in (".", "internal")
+        label = "encoding/json/" if src_rel == "." else f"{src_rel}/"
+        print(f"Copying {label}")
+        c, s = copy_directory(src_dir, dst_dir, recurse_subdirs=recurse, jsontest_dir=jsontest_dir)
+        total_copied += c
+        total_skipped += s
+
+    return total_copied, total_skipped
 
 
 def main():
@@ -198,13 +235,13 @@ def main():
     print(f"Output: {output_base}\n")
 
     clean_output(output_base)
-    total = copy_all(json_src, output_base, jsontest_dir)
+    copied, skipped = copy_all(json_src, output_base, jsontest_dir)
 
-    print(f"\nDone. Copied/processed {total} files.")
+    print(f"\nDone. Copied {copied} files, skipped {skipped} v1-only files.")
     print("\nNext steps:")
     print("  cd golangproj && go mod tidy")
     print("  cd golangproj && go build ./logjson/...")
-    print("  cd golangproj && go test ./logjson/internal/gostd/json/...")
+    print("  cd golangproj && go test ./logjson/internal/gostd/encoding/json/...")
 
 
 if __name__ == "__main__":
