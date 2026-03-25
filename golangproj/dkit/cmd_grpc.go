@@ -51,6 +51,7 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	tls := cmd.Flags().Bool("tls", false, "enable TLS; by default the connection is plaintext")
 	initConnWin := cmd.Flags().Int32("initial-conn-window-size", 0, "HTTP/2 initial connection flow-control window (bytes); 0 uses gRPC default")
 	initWin := cmd.Flags().Int32("initial-window-size", 0, "HTTP/2 initial stream flow-control window (bytes); 0 uses gRPC default")
+	count := cmd.Flags().Int("count", 1, "number of times to send the request")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return GrpcMain(&GrpcMainReq{
 			Host:                  *host,
@@ -62,6 +63,7 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 			TLS:                   *tls,
 			InitialConnWindowSize: *initConnWin,
 			InitialWindowSize:     *initWin,
+			Count:                 *count,
 		})
 	}
 	rootCmd.AddCommand(cmd)
@@ -111,6 +113,7 @@ type GrpcMainReq struct {
 	TLS                   bool
 	InitialConnWindowSize int32 // 0: omit WithInitialConnWindowSize
 	InitialWindowSize     int32 // 0: omit WithInitialWindowSize
+	Count                 int   // number of times to send the request; default 1
 }
 
 var validQueryValues = map[string]bool{
@@ -681,42 +684,54 @@ func sendRequest(req *GrpcMainReq) error {
 		return err
 	}
 
-	invokeReq, err := codec.CreateReqObj(body)
-	if err != nil {
-		return err
-	}
-	reply := codec.CreateReplyTarget()
-
-	var header, trailer metadata.MD
-	callOpts := []grpc.CallOption{grpc.Header(&header), grpc.Trailer(&trailer)}
-	if opt := codec.GrpcCallOption(); opt != nil {
-		callOpts = append(callOpts, opt)
-	}
-
 	cc, err := NewGrpcClient(conf)
 	if err != nil {
 		return fmt.Errorf("dial server: %w", err)
 	}
 	defer cc.Close()
 
-	err = cc.Invoke(ctx, normalizeMethodPath(req.Method), invokeReq, reply, callOpts...)
-	if err != nil {
-		return err
+	count := req.Count
+	if count <= 0 {
+		count = 1
 	}
+	for i := range count {
+		invokeReq, err := codec.CreateReqObj(body)
+		if err != nil {
+			return err
+		}
+		reply := codec.CreateReplyTarget()
 
-	printMetadataSection("header", header)
-	printMetadataSection("trailer", trailer)
+		var header, trailer metadata.MD
+		callOpts := []grpc.CallOption{grpc.Header(&header), grpc.Trailer(&trailer)}
+		if opt := codec.GrpcCallOption(); opt != nil {
+			callOpts = append(callOpts, opt)
+		}
 
-	out, err := codec.GetResponseOutput(reply)
-	if err != nil {
-		return err
+		err = cc.Invoke(ctx, normalizeMethodPath(req.Method), invokeReq, reply, callOpts...)
+		if err != nil {
+			return err
+		}
+
+		if count > 1 {
+			fmt.Fprintf(os.Stderr, "--- request %d/%d ---\n", i+1, count)
+		}
+		printMetadataSection("header", header)
+		printMetadataSection("trailer", trailer)
+
+		out, err := codec.GetResponseOutput(reply)
+		if err != nil {
+			return err
+		}
+		if len(out) == 0 {
+			fmt.Fprintln(os.Stderr, "(empty response)")
+		} else {
+			_, err = os.Stdout.Write(out)
+			if err != nil {
+				return err
+			}
+		}
 	}
-	if len(out) == 0 {
-		fmt.Fprintln(os.Stderr, "(empty response)")
-		return nil
-	}
-	_, err = os.Stdout.Write(out)
-	return err
+	return nil
 }
 
 // Codec abstracts request construction, response parsing, and gRPC call options for sendRequest.
