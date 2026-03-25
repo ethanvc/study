@@ -10,7 +10,11 @@ import (
 	"time"
 )
 
+type Level int
+
 type LogItem struct {
+	ctx *ObsContext
+	lvl Level
 }
 
 func (l *LogItem) Str(key string, val string) *LogItem {
@@ -18,6 +22,18 @@ func (l *LogItem) Str(key string, val string) *LogItem {
 		return nil
 	}
 	return l
+}
+
+func (l *LogItem) Emit(event string) {
+	if l == nil {
+		return
+	}
+}
+
+func (l *LogItem) EmitReport(event string) {
+	if l == nil {
+		return
+	}
 }
 
 func LogInfo(ctx context.Context, event string, args ...any) {
