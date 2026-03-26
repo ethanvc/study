@@ -52,6 +52,7 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	initConnWin := cmd.Flags().Int32("initial-conn-window-size", 0, "HTTP/2 initial connection flow-control window (bytes); 0 uses gRPC default")
 	initWin := cmd.Flags().Int32("initial-window-size", 0, "HTTP/2 initial stream flow-control window (bytes); 0 uses gRPC default")
 	count := cmd.Flags().Int("count", 1, "number of times to send the request")
+	headers := cmd.Flags().StringArrayP("header", "H", nil, "gRPC metadata header in 'key: value' format (repeatable)")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return GrpcMain(&GrpcMainReq{
 			Host:                  *host,
@@ -64,6 +65,7 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 			InitialConnWindowSize: *initConnWin,
 			InitialWindowSize:     *initWin,
 			Count:                 *count,
+			Headers:               *headers,
 		})
 	}
 	rootCmd.AddCommand(cmd)
@@ -111,9 +113,10 @@ type GrpcMainReq struct {
 	Query                 string
 	Svr                   string
 	TLS                   bool
-	InitialConnWindowSize int32 // 0: omit WithInitialConnWindowSize
-	InitialWindowSize     int32 // 0: omit WithInitialWindowSize
-	Count                 int   // number of times to send the request; default 1
+	InitialConnWindowSize int32    // 0: omit WithInitialConnWindowSize
+	InitialWindowSize     int32    // 0: omit WithInitialWindowSize
+	Count                 int      // number of times to send the request; default 1
+	Headers               []string // "key: value" pairs sent as gRPC metadata
 }
 
 var validQueryValues = map[string]bool{
@@ -670,8 +673,28 @@ func resolveMethodMessages(ctx context.Context, conf *GrpcClientConfig, method s
 	return dynamicpb.NewMessage(inputMsgDesc), outputMsgDescVal, nil
 }
 
+func parseHeaders(raw []string) (metadata.MD, error) {
+	md := metadata.MD{}
+	for _, h := range raw {
+		k, v, ok := strings.Cut(h, ":")
+		if !ok {
+			return nil, fmt.Errorf("invalid header %q: expected 'key: value'", h)
+		}
+		md.Append(strings.TrimSpace(k), strings.TrimSpace(v))
+	}
+	return md, nil
+}
+
 func sendRequest(req *GrpcMainReq) error {
 	ctx := context.Background()
+
+	if len(req.Headers) > 0 {
+		md, err := parseHeaders(req.Headers)
+		if err != nil {
+			return err
+		}
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
 
 	body, err := resolveBody(req.Body)
 	if err != nil {
