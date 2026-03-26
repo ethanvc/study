@@ -71,7 +71,7 @@ func Test_Case(t *testing.T) {
 		var reqHeader http.Header
 		err := errors.New("some error")
 		// implementation will add method and timecost in the log.
-		GetObsContext(ctx).ReportAccessLog(err, req, resp, nil, "req_header", reqHeader)
+		GetObsContext(ctx).LogReportAccessLog(err, req, resp, nil, "req_header", reqHeader)
 	}
 	{
 		// report with special labels
@@ -81,7 +81,7 @@ func Test_Case(t *testing.T) {
 		labels := []KV{
 			{Key: "user_id", Val: "333"},
 		}
-		GetObsContext(context.Background()).ReportAccessLog(err, req, resp, labels, "req_header", reqHeader)
+		GetObsContext(context.Background()).LogReportAccessLog(err, req, resp, labels, "req_header", reqHeader)
 	}
 	{
 		// offer a function to get the log error.
