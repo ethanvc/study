@@ -71,6 +71,6 @@ func Test_Case(t *testing.T) {
 		var reqHeader http.Header
 		err := errors.New("some error")
 		// implementation will add method and timecost in the log.
-		GetObsContext(ctx).ReportLogAccess(err, req, resp, nil, "req_header", reqHeader)
+		GetObsContext(ctx).ReportAccessLog(err, req, resp, nil, "req_header", reqHeader)
 	}
 }

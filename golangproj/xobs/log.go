@@ -46,7 +46,7 @@ func GetObsContext(ctx context.Context) *ObsContext {
 	return val
 }
 
-func (oc *ObsContext) ReportLogAccess(err error, req, resp any, labels []KV, args ...any) {
+func (oc *ObsContext) ReportAccessLog(err error, req, resp any, labels []KV, args ...any) {
 }
 
 func (oc *ObsContext) SetAttr(key string, val any) {}
