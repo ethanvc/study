@@ -13,4 +13,4 @@ golangproj/dkit/cmd/dkit/main
 !.vscode/launch.json
 /bin/
 *.log
-golangproj/dkit/cmd/dkit/dkit
+/golangproj/dkit/cmd/dkit/dkit
