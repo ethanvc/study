@@ -84,6 +84,11 @@ func Test_Case(t *testing.T) {
 		GetObsContext(context.Background()).LogReportAccessLog(err, req, resp, labels, "req_header", reqHeader)
 	}
 	{
-		// offer a function to get the log error.
+		// offer a function to get the log error. like redis, we want make not found as debug level, so it won't be printed in log.
+		getLvl := func(err *Error) slog.Level {
+			switch err.GetCode() {
+			case codes.OK:
+				
+			}
 	}
 }

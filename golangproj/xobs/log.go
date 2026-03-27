@@ -34,6 +34,7 @@ type ObsContext struct {
 	span   *Span
 	logger *Logger
 	lvl    *slog.Level
+	getLogLevel func(err *Error)slog.Level
 }
 
 type ctxKeyObsContext struct{}
