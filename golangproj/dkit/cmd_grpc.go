@@ -52,7 +52,7 @@ func AddGrpcCmd(rootCmd *cobra.Command) {
 	initConnWin := cmd.Flags().Int32("initial-conn-window-size", 0, "HTTP/2 initial connection flow-control window (bytes); 0 uses gRPC default")
 	initWin := cmd.Flags().Int32("initial-window-size", 0, "HTTP/2 initial stream flow-control window (bytes); 0 uses gRPC default")
 	count := cmd.Flags().Int("count", 1, "number of times to send the request")
-	headers := cmd.Flags().StringArrayP("header", "H", nil, "gRPC metadata header in 'key: value' format (repeatable)")
+	headers := cmd.Flags().StringArrayP("header", "H", nil, "gRPC metadata header in 'key: value' format (repeatable); use @file to read from a file")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return GrpcMain(&GrpcMainReq{
 			Host:                  *host,
@@ -676,13 +676,43 @@ func resolveMethodMessages(ctx context.Context, conf *GrpcClientConfig, method s
 func parseHeaders(raw []string) (metadata.MD, error) {
 	md := metadata.MD{}
 	for _, h := range raw {
-		k, v, ok := strings.Cut(h, ":")
-		if !ok {
-			return nil, fmt.Errorf("invalid header %q: expected 'key: value'", h)
+		if strings.HasPrefix(h, "@") {
+			if err := loadHeadersFromFile(h[1:], &md); err != nil {
+				return nil, err
+			}
+			continue
 		}
-		md.Append(strings.TrimSpace(k), strings.TrimSpace(v))
+		if err := addHeader(&md, h); err != nil {
+			return nil, err
+		}
 	}
 	return md, nil
+}
+
+func loadHeadersFromFile(path string, md *metadata.MD) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read header file %s: %w", path, err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if err := addHeader(md, line); err != nil {
+			return fmt.Errorf("header file %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+func addHeader(md *metadata.MD, h string) error {
+	k, v, ok := strings.Cut(h, ":")
+	if !ok {
+		return fmt.Errorf("invalid header %q: expected 'key: value'", h)
+	}
+	md.Append(strings.TrimSpace(k), strings.TrimSpace(v))
+	return nil
 }
 
 func sendRequest(req *GrpcMainReq) error {
