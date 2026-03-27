@@ -30,14 +30,26 @@ func ReportErr(ctx context.Context, event string, labels ...KV) {
 }
 
 type ObsContext struct {
-	parent *ObsContext
-	span   *Span
-	logger *Logger
-	lvl    *slog.Level
-	getLogLevel func(err *Error)slog.Level
+	parent      *ObsContext
+	span        *Span
+	logger      *Logger
+	lvl         *slog.Level
+	getLogLevel func(err *Error) slog.Level
 }
 
 type ctxKeyObsContext struct{}
+
+type SpanConfig struct {
+	Name string
+}
+
+func WithSpanContext(ctx context.Context, config *SpanConfig) context.Context {
+	if config == nil {
+		config = &SpanConfig{
+			Name: "default",
+		}
+	return ctx
+}
 
 func GetObsContext(ctx context.Context) *ObsContext {
 	val, _ := ctx.Value(ctxKeyObsContext{}).(*ObsContext)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 )
 
 func Test_Case(t *testing.T) {
+	ctx := context.Background()
 	{
 		// case: return error and let middleware print it in log and do monitor report.
 		f := func(ctx context.Context, req string) (int, error) {
@@ -26,13 +28,12 @@ func Test_Case(t *testing.T) {
 			}
 			return 0, nil
 		}
-		_, err := f(context.Background(), "")
+		_, err := f(ctx, "")
 		require.Equal(t, codes.InvalidArgument, Code(err))
 	}
 
 	{
 		// add something to print in access log.
-		ctx := context.Background()
 		GetObsContext(ctx).SetAttr("http.method", "POST")
 	}
 
@@ -48,7 +49,7 @@ func Test_Case(t *testing.T) {
 			}
 			return 0, nil
 		}
-		_, _ = f(context.Background())
+		_, _ = f(ctx)
 	}
 
 	{
@@ -60,13 +61,12 @@ func Test_Case(t *testing.T) {
 			}
 			return nil
 		}
-		_ = f(context.Background())
+		_ = f(ctx)
 	}
 	{
 		// case: middleware use this to print access log and do monitor report.
 		// it's business's responsibility to add more content to print in log.
 		// but how to add more report labels?
-		ctx := context.Background()
 		var req, resp any
 		var reqHeader http.Header
 		err := errors.New("some error")
@@ -87,8 +87,12 @@ func Test_Case(t *testing.T) {
 		// offer a function to get the log error. like redis, we want make not found as debug level, so it won't be printed in log.
 		getLvl := func(err *Error) slog.Level {
 			switch err.GetCode() {
-			case codes.OK:
-				
+			case codes.OK, codes.NotFound, codes.AlreadyExists:
+				return slog.LevelDebug
+			default:
+				return slog.LevelError
 			}
+		}
+		GetObsContext(ctx).SetGetLogLevel(getLvl)
 	}
 }
