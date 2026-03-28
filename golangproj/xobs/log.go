@@ -44,11 +44,16 @@ type SpanConfig struct {
 }
 
 func WithSpanContext(ctx context.Context, config *SpanConfig) context.Context {
-	if config == nil {
-		config = &SpanConfig{
-			Name: "default",
-		}
+	span := &Span{}
+	span.init(config)
+	ctx, obsCtx := withObsContext(ctx)
+	obsCtx.span = span
 	return ctx
+}
+
+func withObsContext(ctx context.Context) (context.Context, *ObsContext) {
+	obsCtx := &ObsContext{}
+	return context.WithValue(ctx, ctxKeyObsContext{}, obsCtx), obsCtx
 }
 
 func GetObsContext(ctx context.Context) *ObsContext {
@@ -89,7 +94,14 @@ func (oc *ObsContext) Enabled(lvl slog.Level) bool {
 }
 
 type Span struct {
-	name string
+	name      string
+	startTime time.Time
+	cost      time.Duration
+}
+
+func (s *Span) init(config *SpanConfig) {
+	s.name = config.Name
+	s.startTime = time.Now()
 }
 
 type KV struct {

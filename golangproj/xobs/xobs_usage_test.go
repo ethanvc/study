@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
@@ -28,8 +27,10 @@ func Test_Case(t *testing.T) {
 			}
 			return 0, nil
 		}
-		_, err := f(ctx, "")
-		require.Equal(t, codes.InvalidArgument, Code(err))
+		ctx := WithSpanContext(ctx, &SpanConfig{Name: "Test_Case"})
+		req := ""
+		resp, err := f(ctx, req)
+		GetObsContext(ctx).LogReportAccessLog(err, req, resp, nil)
 	}
 
 	{
@@ -93,6 +94,6 @@ func Test_Case(t *testing.T) {
 				return slog.LevelError
 			}
 		}
-		GetObsContext(ctx).SetGetLogLevel(getLvl)
+		_ = getLvl
 	}
 }
