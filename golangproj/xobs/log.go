@@ -64,6 +64,25 @@ func GetObsContext(ctx context.Context) *ObsContext {
 	return val
 }
 
+func GetRootSpan(ctx context.Context) *Span {
+	obsCtx := GetObsContext(ctx)
+	return obsCtx.GetRootSpan()
+}
+
+func (oc *ObsContext) GetRootSpan() *Span {
+	var span *Span
+	for oc != nil {
+		if oc.span != nil {
+			span = oc.span
+		}
+		oc = oc.parent
+	}
+	if span != nil {
+		return span
+	}
+	return defaultObCtx.span
+}
+
 func (oc *ObsContext) LogReportAccessLog(err error, req, resp any, labels []KV, args ...any) {
 }
 
@@ -102,6 +121,10 @@ type Span struct {
 func (s *Span) init(config *SpanConfig) {
 	s.name = config.Name
 	s.startTime = time.Now()
+}
+
+func (s *Span) SetAttr(key string, val any) {
+
 }
 
 type KV struct {

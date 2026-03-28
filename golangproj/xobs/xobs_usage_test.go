@@ -2,7 +2,6 @@ package xobs
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -11,46 +10,46 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+func GetUserAccount(ctx context.Context, userId int64) (*UserAccount, error) {
+	return nil, nil
+}
+
+type UserAccount struct {
+	UserId  int64  `json:"user_id"`
+	Account string `json:"account"`
+	Balance int64  `json:"balance"`
+}
+
 func Test_Case(t *testing.T) {
 	ctx := context.Background()
 	{
-		// case: return error and let middleware print it in log and do monitor report.
-		f := func(ctx context.Context, req string) (int, error) {
-			type Abc struct {
-				A string
-			}
-			var objReq Abc
-			err := json.Unmarshal([]byte(req), &objReq)
-			if err != nil {
-				// return error to let middleware process
-				return 0, New(codes.InvalidArgument, "ArgumentNotValidJson").SetMsg(err.Error())
-			}
-			return 0, nil
+		// case: normal business case
+		type CreateOrderReq struct {
+			Amount     int64 `json:"amount"`
+			UserId     int64 `json:"user_id"`
+			BusinessId int64 `json:"business_id"`
 		}
-		ctx := WithSpanContext(ctx, &SpanConfig{Name: "Test_Case"})
-		req := ""
-		resp, err := f(ctx, req)
-		GetObsContext(ctx).LogReportAccessLog(err, req, resp, nil)
-	}
-
-	{
-		// add something to print in access log.
-		GetObsContext(ctx).SetAttr("http.method", "POST")
-	}
-
-	{
-		// log and return error
-		f := func(ctx context.Context) (int, error) {
-			var req, resp any
-			err := errors.New("internal error")
+		type CreateOrderResp struct{}
+		f := func(ctx context.Context, req *CreateOrderReq) (*CreateOrderResp, error) {
+			if req.Amount <= 0 {
+				return nil, New(codes.InvalidArgument, "AmountNotValid").SetMsg("amount must be greater than 0")
+			}
+			// set something to print in access log and as report label.
+			GetRootSpan(ctx).SetAttr("business_id", req.BusinessId)
+			// access downstream and can not downgrade
+			account, err := GetUserAccount(ctx, req.UserId)
 			if err != nil {
-				// will decide log level internally.
-				return 0, New(codes.Unknown, "CallSvrAErr").SetMsg(err.Error()).
+				return nil, New(codes.Unknown, "CallSvrAErr").SetMsg(err.Error()).
 					LogReport(ctx, "req", req, "resp", resp)
 			}
-			return 0, nil
+			_ = account
+			return &CreateOrderResp{}, nil
 		}
-		_, _ = f(ctx)
+		ctx := WithSpanContext(ctx, &SpanConfig{Name: "YourApiName"})
+		req := &CreateOrderReq{}
+		resp, err := f(ctx, req)
+		// in real case, you should get report kvs after verified.
+		GetObsContext(ctx).LogReportAccessLog(err, req, resp, []KV{{Key: "business_id", Val: "333"}})
 	}
 
 	{
