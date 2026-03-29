@@ -2,9 +2,7 @@ package xobs
 
 import (
 	"context"
-	"errors"
 	"log/slog"
-	"net/http"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -14,6 +12,17 @@ func GetUserAccount(ctx context.Context, userId int64) (*UserAccount, error) {
 	return nil, nil
 }
 
+func GetVoucher(ctx context.Context, req *GetVoucherReq) (*GetVoucherResp, error) {
+	return nil, nil
+}
+
+type GetVoucherReq struct {
+	UserId int64 `json:"user_id"`
+	Amount int64 `json:"amount"`
+}
+
+type GetVoucherResp struct {
+}
 type UserAccount struct {
 	UserId  int64  `json:"user_id"`
 	Account string `json:"account"`
@@ -25,9 +34,10 @@ func Test_Case(t *testing.T) {
 	{
 		// case: normal business case
 		type CreateOrderReq struct {
-			Amount     int64 `json:"amount"`
-			UserId     int64 `json:"user_id"`
-			BusinessId int64 `json:"business_id"`
+			Amount     int64  `json:"amount"`
+			UserId     int64  `json:"user_id"`
+			BusinessId int64  `json:"business_id"`
+			MchOrderId string `json:"mch_order_id"`
 		}
 		type CreateOrderResp struct{}
 		f := func(ctx context.Context, req *CreateOrderReq) (*CreateOrderResp, error) {
@@ -39,10 +49,18 @@ func Test_Case(t *testing.T) {
 			// access downstream and can not downgrade
 			account, err := GetUserAccount(ctx, req.UserId)
 			if err != nil {
-				return nil, New(codes.Unknown, "CallSvrAErr").SetMsg(err.Error()).
-					LogReport(ctx, "req", req, "resp", resp)
+				return nil, New(codes.Unknown, "CallGetUserAccountErr").SetMsg(err.Error()).
+					LogReport(ctx, "req", req)
 			}
 			_ = account
+			voucher, err := GetVoucher(ctx, &GetVoucherReq{
+				UserId: req.UserId,
+				Amount: req.Amount,
+			})
+			if err != nil {
+				LogReportErr(ctx, "GetVoucherErr", "err", err)
+			}
+			_ = voucher
 			return &CreateOrderResp{}, nil
 		}
 		ctx := WithSpanContext(ctx, &SpanConfig{Name: "YourApiName"})
@@ -52,37 +70,6 @@ func Test_Case(t *testing.T) {
 		GetObsContext(ctx).LogReportAccessLog(err, req, resp, []KV{{Key: "business_id", Val: "333"}})
 	}
 
-	{
-		// case: log and report in-place, but the error can downgrade.
-		f := func(ctx context.Context) error {
-			err := errors.New("some error")
-			if err != nil {
-				LogReportErr(ctx, "keyOperationFailedButDowngraded", "err", err)
-			}
-			return nil
-		}
-		_ = f(ctx)
-	}
-	{
-		// case: middleware use this to print access log and do monitor report.
-		// it's business's responsibility to add more content to print in log.
-		// but how to add more report labels?
-		var req, resp any
-		var reqHeader http.Header
-		err := errors.New("some error")
-		// implementation will add method and timecost in the log.
-		GetObsContext(ctx).LogReportAccessLog(err, req, resp, nil, "req_header", reqHeader)
-	}
-	{
-		// report with special labels
-		var req, resp any
-		var reqHeader http.Header
-		err := errors.New("some error")
-		labels := []KV{
-			{Key: "user_id", Val: "333"},
-		}
-		GetObsContext(context.Background()).LogReportAccessLog(err, req, resp, labels, "req_header", reqHeader)
-	}
 	{
 		// offer a function to get the log error. like redis, we want make not found as debug level, so it won't be printed in log.
 		getLvl := func(err *Error) slog.Level {
