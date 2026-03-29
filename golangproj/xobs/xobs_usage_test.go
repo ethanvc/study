@@ -61,6 +61,10 @@ func Test_Case(t *testing.T) {
 				LogReportErr(ctx, "GetVoucherErr", "err", err)
 			}
 			_ = voucher
+			// make below log level to error
+			newCtx := WithObsContext(ctx, &ObsConfig{Level: new(slog.LevelError)})
+			_ = newCtx
+			// do operation with newCtx
 			return &CreateOrderResp{}, nil
 		}
 		ctx := WithSpanContext(ctx, &SpanConfig{Name: "YourApiName"})

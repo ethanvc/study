@@ -44,12 +44,25 @@ type SpanConfig struct {
 	GetLogLevel func(err *Error) slog.Level
 }
 
+type ObsConfig struct {
+	GetLogLevel func(err *Error) slog.Level
+	Level       *slog.Level
+}
+
 func WithSpanContext(ctx context.Context, config *SpanConfig) context.Context {
 	span := &Span{}
 	span.init(config)
 	ctx, obsCtx := withObsContext(ctx)
 	obsCtx.span = span
 	return ctx
+}
+
+func WithObsContext(ctx context.Context, config *ObsConfig) context.Context {
+	obsCtx := &ObsContext{
+		getLogLevel: config.GetLogLevel,
+		lvl:         config.Level,
+	}
+	return context.WithValue(ctx, ctxKeyObsContext{}, obsCtx)
 }
 
 func withObsContext(ctx context.Context) (context.Context, *ObsContext) {
