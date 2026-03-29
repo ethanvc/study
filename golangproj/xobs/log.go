@@ -40,7 +40,8 @@ type ObsContext struct {
 type ctxKeyObsContext struct{}
 
 type SpanConfig struct {
-	Name string
+	Name        string
+	GetLogLevel func(err *Error) slog.Level
 }
 
 func WithSpanContext(ctx context.Context, config *SpanConfig) context.Context {

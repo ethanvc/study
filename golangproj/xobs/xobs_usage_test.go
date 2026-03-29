@@ -71,7 +71,7 @@ func Test_Case(t *testing.T) {
 	}
 
 	{
-		// offer a function to get the log error. like redis, we want make not found as debug level, so it won't be printed in log.
+		// for redis access log, need adjust the log level to reduce log.
 		getLvl := func(err *Error) slog.Level {
 			switch err.GetCode() {
 			case codes.OK, codes.NotFound, codes.AlreadyExists:
@@ -80,6 +80,9 @@ func Test_Case(t *testing.T) {
 				return slog.LevelError
 			}
 		}
-		_ = getLvl
+		ctx := WithSpanContext(ctx, &SpanConfig{Name: "RedisAccess", GetLogLevel: getLvl})
+		// do redis operation ...
+		err := New(codes.NotFound, "KeyNotFound")
+		GetObsContext(ctx).LogReportAccessLog(err, nil, nil, nil)
 	}
 }
