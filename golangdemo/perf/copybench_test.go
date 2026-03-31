@@ -31,8 +31,8 @@ func BenchmarkPassRecord(b *testing.B) {
 
 	b.Run("byPointer", func(b *testing.B) {
 		b.ReportAllocs()
-		var r slog.Record
 		for b.Loop() {
+			var r slog.Record
 			consumeByPointer(&r)
 		}
 	})
