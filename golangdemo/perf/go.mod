@@ -1,4 +1,4 @@
-module memory_escape
+module perf
 
 go 1.24.4
 

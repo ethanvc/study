@@ -1,4 +1,4 @@
-package memory_escape
+package perf
 
 import (
 	"context"
