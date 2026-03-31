@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-type Level int
-
 func LogInfo(ctx context.Context, event string, args ...any) {
 	obsCtx := GetObsContext(ctx)
 	obsCtx.GetLogger().LogRaw(ctx, obsCtx, 1, slog.LevelInfo, event, args...)
