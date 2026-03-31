@@ -2,7 +2,6 @@ package xobs
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -62,7 +61,7 @@ func Test_Case(t *testing.T) {
 			}
 			_ = voucher
 			// make below log level to error
-			newCtx := WithObsContext(ctx, &ObsConfig{Level: new(slog.LevelError)})
+			newCtx := WithObsContext(ctx, &ObsConfig{Level: LevelErr})
 			_ = newCtx
 			// do operation with newCtx
 			return &CreateOrderResp{}, nil
@@ -76,12 +75,12 @@ func Test_Case(t *testing.T) {
 
 	{
 		// for redis access log, need adjust the log level to reduce log.
-		getLvl := func(err *Error) slog.Level {
+		getLvl := func(err *Error) Level {
 			switch err.GetCode() {
 			case codes.OK, codes.NotFound, codes.AlreadyExists:
-				return slog.LevelDebug
+				return LevelDbg
 			default:
-				return slog.LevelError
+				return LevelErr
 			}
 		}
 		ctx := WithSpanContext(ctx, &SpanConfig{Name: "RedisAccess", GetLogLevel: getLvl})

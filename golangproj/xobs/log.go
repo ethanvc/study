@@ -3,8 +3,6 @@ package xobs
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"os"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -12,7 +10,7 @@ import (
 
 func LogInfo(ctx context.Context, event string, args ...any) {
 	obsCtx := GetObsContext(ctx)
-	obsCtx.GetLogger().LogRaw(ctx, obsCtx, 1, slog.LevelInfo, event, args...)
+	obsCtx.LogRaw(ctx, obsCtx, 1, LevelInfo, event, args...)
 }
 
 func LogReportErr(ctx context.Context, event string, args ...any) {
@@ -20,7 +18,7 @@ func LogReportErr(ctx context.Context, event string, args ...any) {
 
 func LogErr(ctx context.Context, event string, args ...any) {
 	obsCtx := GetObsContext(ctx)
-	obsCtx.GetLogger().LogRaw(ctx, obsCtx, 1, slog.LevelError, event, args...)
+	obsCtx.LogRaw(ctx, obsCtx, 1, LevelErr, event, args...)
 }
 
 func ReportErr(ctx context.Context, event string, labels ...KV) {
@@ -30,21 +28,21 @@ func ReportErr(ctx context.Context, event string, labels ...KV) {
 type ObsContext struct {
 	parent      *ObsContext
 	span        *Span
-	logger      *Logger
-	lvl         *slog.Level
-	getLogLevel func(err *Error) slog.Level
+	handler     Handler
+	lvl         Level
+	getLogLevel func(err *Error) Level
 }
 
 type ctxKeyObsContext struct{}
 
 type SpanConfig struct {
 	Name        string
-	GetLogLevel func(err *Error) slog.Level
+	GetLogLevel func(err *Error) Level
 }
 
 type ObsConfig struct {
-	GetLogLevel func(err *Error) slog.Level
-	Level       *slog.Level
+	GetLogLevel func(err *Error) Level
+	Level       Level
 }
 
 func WithSpanContext(ctx context.Context, config *SpanConfig) context.Context {
@@ -100,28 +98,32 @@ func (oc *ObsContext) LogReportAccessLog(err error, req, resp any, labels []KV, 
 
 func (oc *ObsContext) SetAttr(key string, val any) {}
 
-func (oc *ObsContext) GetLogger() *Logger {
+func (oc *ObsContext) GetHandler() Handler {
 	for oc != nil {
-		if oc.logger != nil {
-			return oc.logger
+		if oc.handler != nil {
+			return oc.handler
 		}
 		oc = oc.parent
 	}
 	panic("never come here")
 }
 
-func (oc *ObsContext) GetLvl() slog.Level {
+func (oc *ObsContext) GetLevel() Level {
 	for oc != nil {
-		if oc.lvl != nil {
-			return *oc.lvl
+		if oc.lvl != LevelNotSet {
+			return oc.lvl
 		}
 		oc = oc.parent
 	}
-	return slog.LevelInfo
+	return LevelInfo
 }
 
-func (oc *ObsContext) Enabled(lvl slog.Level) bool {
-	return lvl >= oc.GetLvl()
+func (oc *ObsContext) Enabled(lvl Level) bool {
+	return lvl >= oc.GetLevel()
+}
+
+func (oc *ObsContext) LogRaw(ctx context.Context, obsCtx *ObsContext, skip int, lvl Level, event string, args ...any) {
+
 }
 
 type Span struct {
@@ -144,40 +146,14 @@ type KV struct {
 	Val string
 }
 
-type Logger struct {
-	h slog.Handler
-}
-
-func (l *Logger) LogRaw(ctx context.Context, obsCtx *ObsContext, skip int, lvl slog.Level, event string, args ...any) {
-	if !obsCtx.Enabled(lvl) {
-		return
-	}
-	callerPos := GetCallerPosition(skip + 1)
-	record := slog.NewRecord(time.Now(), lvl, event, 0)
-	record.Add(slog.SourceKey, callerPos)
-	record.Add(args...)
-	l.h.Handle(ctx, record)
-}
-
-// newDefaultLogHandler 创建默认日志输出：优先写入 log/obs.log，失败则退回 stderr。
-func newDefaultLogHandler() slog.Handler {
-	if err := os.MkdirAll("log", 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "fatal error: create log directory: %v\n", err)
-		return slog.NewJSONHandler(os.Stderr, nil)
-	}
-	f, err := os.OpenFile("log/obs.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "fatal error: open log file: %v\n", err)
-		return slog.NewJSONHandler(os.Stderr, nil)
-	}
-	return slog.NewJSONHandler(f, nil)
+type Handler interface {
+	Handle(ctx context.Context, item LogItem)
 }
 
 var defaultObCtx = &ObsContext{
 	span: &Span{
 		name: "default",
 	},
-	logger: &Logger{h: newDefaultLogHandler()},
 }
 
 // lastTwoPathParts 返回路径的最后两段（如 pkg/foo.go）；不足两段则只返回最后一段。
