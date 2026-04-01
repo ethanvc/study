@@ -93,6 +93,16 @@ func (oc *ObsContext) GetRootSpan() *Span {
 	return defaultObCtx.span
 }
 
+func (oc *ObsContext) GetSpan() *Span {
+	for oc != nil {
+		if oc.span != nil {
+			return oc.span
+		}
+		oc = oc.parent
+	}
+	return defaultObCtx.span
+}
+
 func (oc *ObsContext) LogReportAccessLog(err error, req, resp any, labels []KV, args ...any) {
 }
 
@@ -127,14 +137,29 @@ func (oc *ObsContext) LogRaw(ctx context.Context, obsCtx *ObsContext, skip int, 
 }
 
 type Span struct {
-	name      string
-	startTime time.Time
-	cost      time.Duration
+	name         string
+	startTime    time.Time
+	cost         time.Duration
+	traceId      string
+	spanId       string
+	parentSpanId string
 }
 
 func (s *Span) init(config *SpanConfig) {
 	s.name = config.Name
 	s.startTime = time.Now()
+}
+
+func (s *Span) GetTraceId() string {
+	return s.traceId
+}
+
+func (s *Span) GetSpanId() string {
+	return s.spanId
+}
+
+func (s *Span) GetParentSpanId() string {
+	return s.parentSpanId
 }
 
 func (s *Span) SetAttr(key string, val any) {
