@@ -148,6 +148,7 @@ type KV struct {
 
 type Handler interface {
 	Handle(ctx context.Context, item LogItem)
+	Flush()
 }
 
 var defaultObCtx = &ObsContext{

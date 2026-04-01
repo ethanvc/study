@@ -18,6 +18,7 @@ type LogItem struct {
 	front  [nAttrsInline]Attr
 	nFront int
 	back   []Attr
+	ObsCtx     *ObsContext
 }
 
 const nAttrsInline = 5
