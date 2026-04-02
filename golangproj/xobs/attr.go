@@ -22,8 +22,7 @@ func Float64(key string, val float64) Attr { return Attr{Key: key, Val: Float64V
 func Bool(key string, val bool) Attr   { return Attr{Key: key, Val: BoolValue(val)} }
 func Time(key string, val time.Time) Attr { return Attr{Key: key, Val: TimeValue(val)} }
 func Duration(key string, val time.Duration) Attr { return Attr{Key: key, Val: DurationValue(val)} }
-func Group(key string, attrs ...Attr) Attr { return Attr{Key: key, Val: GroupValue(attrs...)} }
-func Any(key string, val any) Attr    { return Attr{Key: key, Val: AnyValue(val)} }
+func Any(key string, val any) Attr { return Attr{Key: key, Val: AnyValue(val)} }
 
 func (a Attr) Equal(b Attr) bool {
 	return a.Key == b.Key && a.Val.Equal(b.Val)
@@ -40,14 +39,12 @@ type Value struct {
 	// If any is of type Kind, then the value is in num.
 	// If any is of type *time.Location, then Kind is Time.
 	// If any is of type stringptr, then Kind is String.
-	// If any is of type groupptr, then Kind is Group.
 	// Otherwise, Kind is Any and any is the value.
 	any any
 }
 
 type (
 	stringptr    *byte
-	groupptr     *Attr
 	timeLocation *time.Location
 	timeTime     time.Time
 )
@@ -64,13 +61,12 @@ const (
 	KindString
 	KindTime
 	KindUint64
-	KindGroup
 	KindLogValuer
 )
 
 var kindStrings = []string{
 	"Any", "Bool", "Duration", "Float64", "Int64",
-	"String", "Time", "Uint64", "Group", "LogValuer",
+	"String", "Time", "Uint64", "LogValuer",
 }
 
 func (k Kind) String() string {
@@ -91,8 +87,6 @@ func (v Value) Kind() Kind {
 		return KindString
 	case timeLocation, timeTime:
 		return KindTime
-	case groupptr:
-		return KindGroup
 	case LogValuer:
 		return KindLogValuer
 	case kind:
@@ -149,13 +143,6 @@ func DurationValue(val time.Duration) Value {
 	return Value{num: uint64(val.Nanoseconds()), any: KindDuration}
 }
 
-func GroupValue(attrs ...Attr) Value {
-	if len(attrs) == 0 {
-		return Value{}
-	}
-	return Value{num: uint64(len(attrs)), any: groupptr(unsafe.SliceData(attrs))}
-}
-
 // AnyValue returns a Value for the supplied value,
 // using the most specific Kind when possible.
 func AnyValue(val any) Value {
@@ -194,8 +181,6 @@ func AnyValue(val any) Value {
 		return Uint64Value(uint64(v))
 	case uintptr:
 		return Uint64Value(uint64(v))
-	case []Attr:
-		return GroupValue(v...)
 	case Kind:
 		return Value{any: kind(v)}
 	case Value:
@@ -216,8 +201,6 @@ func (v Value) Any() any {
 		return v.any
 	case KindLogValuer:
 		return v.any
-	case KindGroup:
-		return v.group()
 	case KindInt64:
 		return int64(v.num)
 	case KindUint64:
@@ -321,17 +304,6 @@ func (v Value) LogValuer() LogValuer {
 	return v.any.(LogValuer)
 }
 
-func (v Value) Group() []Attr {
-	if sp, ok := v.any.(groupptr); ok {
-		return unsafe.Slice((*Attr)(sp), v.num)
-	}
-	panic("Group: bad Kind")
-}
-
-func (v Value) group() []Attr {
-	return unsafe.Slice((*Attr)(v.any.(groupptr)), v.num)
-}
-
 //////////////// Other
 
 func (v Value) Equal(w Value) bool {
@@ -350,17 +322,6 @@ func (v Value) Equal(w Value) bool {
 		return v.time().Equal(w.time())
 	case KindAny, KindLogValuer:
 		return v.any == w.any
-	case KindGroup:
-		vg, wg := v.group(), w.group()
-		if len(vg) != len(wg) {
-			return false
-		}
-		for i := range vg {
-			if !vg[i].Equal(wg[i]) {
-				return false
-			}
-		}
-		return true
 	default:
 		panic(fmt.Sprintf("bad Kind: %s", k1))
 	}
@@ -382,8 +343,6 @@ func (v Value) append(dst []byte) []byte {
 		return append(dst, v.duration().String()...)
 	case KindTime:
 		return v.time().AppendFormat(dst, time.RFC3339Nano)
-	case KindGroup:
-		return fmt.Append(dst, v.group())
 	case KindAny, KindLogValuer:
 		return fmt.Append(dst, v.any)
 	default:
