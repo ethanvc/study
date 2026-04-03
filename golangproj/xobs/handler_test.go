@@ -22,20 +22,19 @@ func TestJsonHandler_Handle(t *testing.T) {
 	h := NewJsonHandler(&buf)
 
 	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
-	obsCtx := &ObsContext{
-		span: &Span{
-			traceId:      "trace-001",
-			spanId:       "span-002",
-			parentSpanId: "span-001",
-		},
-	}
+	ctx := WithSpanContext(context.Background(), &SpanConfig{
+		Name:         "TestSpan",
+		TraceId:      "trace-001",
+		SpanId:       "span-002",
+		ParentSpanId: "span-001",
+	})
 
 	item := LogItem{
 		Msg:      "order created",
 		Time:     now,
 		Level:    LevelInfo,
 		Position: "xobs/handler.go:24",
-		ObsCtx:   obsCtx,
+		ObsCtx:   GetObsContext(ctx),
 	}
 	item.AddAttrs(
 		String("userId", "u-123"),
@@ -45,7 +44,7 @@ func TestJsonHandler_Handle(t *testing.T) {
 		Duration("elapsed", 150*time.Millisecond),
 	)
 
-	h.Handle(context.Background(), item)
+	h.Handle(ctx, item)
 
 	output := buf.String()
 	t.Log("output:", output)

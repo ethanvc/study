@@ -36,8 +36,11 @@ type ObsContext struct {
 type ctxKeyObsContext struct{}
 
 type SpanConfig struct {
-	Name        string
-	GetLogLevel func(err *Error) Level
+	Name         string
+	TraceId      string
+	SpanId       string
+	ParentSpanId string
+	GetLogLevel  func(err *Error) Level
 }
 
 type ObsConfig struct {
@@ -147,6 +150,9 @@ type Span struct {
 
 func (s *Span) init(config *SpanConfig) {
 	s.name = config.Name
+	s.traceId = config.TraceId
+	s.spanId = config.SpanId
+	s.parentSpanId = config.ParentSpanId
 	s.startTime = time.Now()
 }
 
