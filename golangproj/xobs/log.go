@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
-	"time"
 )
 
 func LogInfo(ctx context.Context, event string, args ...any) {
@@ -40,7 +39,6 @@ type SpanConfig struct {
 	TraceId      string
 	SpanId       string
 	ParentSpanId string
-	GetLogLevel  func(err *Error) Level
 }
 
 type ObsConfig struct {
@@ -103,7 +101,7 @@ func (oc *ObsContext) GetSpan() *Span {
 		}
 		oc = oc.parent
 	}
-	return defaultObCtx.span
+	return nil
 }
 
 func (oc *ObsContext) LogReportAccessLog(err error, req, resp any, labels []KV, args ...any) {
@@ -136,39 +134,6 @@ func (oc *ObsContext) Enabled(lvl Level) bool {
 }
 
 func (oc *ObsContext) LogRaw(ctx context.Context, obsCtx *ObsContext, skip int, lvl Level, event string, args ...any) {
-
-}
-
-type Span struct {
-	name         string
-	startTime    time.Time
-	cost         time.Duration
-	traceId      string
-	spanId       string
-	parentSpanId string
-}
-
-func (s *Span) init(config *SpanConfig) {
-	s.name = config.Name
-	s.traceId = config.TraceId
-	s.spanId = config.SpanId
-	s.parentSpanId = config.ParentSpanId
-	s.startTime = time.Now()
-}
-
-func (s *Span) GetTraceId() string {
-	return s.traceId
-}
-
-func (s *Span) GetSpanId() string {
-	return s.spanId
-}
-
-func (s *Span) GetParentSpanId() string {
-	return s.parentSpanId
-}
-
-func (s *Span) SetAttr(key string, val any) {
 
 }
 
