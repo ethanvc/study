@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"time"
 )
 
 func LogInfo(ctx context.Context, event string, args ...any) {
@@ -62,6 +63,7 @@ func WithObsContext(ctx context.Context, config *ObsConfig) context.Context {
 	obsCtx := &ObsContext{
 		getLogLevel: config.GetLogLevel,
 		lvl:         config.Level,
+		handler:     config.Handler,
 	}
 	return context.WithValue(ctx, ctxKeyObsContext{}, obsCtx)
 }
@@ -138,7 +140,18 @@ func (oc *ObsContext) Enabled(lvl Level) bool {
 }
 
 func (oc *ObsContext) LogRaw(ctx context.Context, obsCtx *ObsContext, skip int, lvl Level, event string, args ...any) {
-
+	if !oc.Enabled(lvl) {
+		return
+	}
+	item := LogItem{
+		Msg:      event,
+		Time:     time.Now(),
+		Level:    lvl,
+		Position: GetCallerPosition(skip),
+		ObsCtx:   obsCtx,
+	}
+	item.Add(args...)
+	obsCtx.GetHandler().Handle(ctx, item)
 }
 
 type KV struct {
