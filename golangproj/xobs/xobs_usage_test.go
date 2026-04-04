@@ -75,8 +75,12 @@ func Test_Case(t *testing.T) {
 
 	{
 		// for redis access log, need adjust the log level to reduce log.
-		getLvl := func(err *Error) Level {
-			switch err.GetCode() {
+		getLvl := func(err error) Level {
+			obsErr, ok := err.(*Error)
+			if !ok {
+				return LevelErr
+			}
+			switch obsErr.GetCode() {
 			case codes.OK, codes.NotFound, codes.AlreadyExists:
 				return LevelDbg
 			default:

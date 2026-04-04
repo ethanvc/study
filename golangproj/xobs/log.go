@@ -24,12 +24,14 @@ func ReportErr(ctx context.Context, event string, labels ...KV) {
 
 }
 
+type GetLogLevelType func(err error) Level
+
 type ObsContext struct {
 	parent      *ObsContext
 	span        *Span
 	handler     Handler
 	lvl         Level
-	getLogLevel func(err *Error) Level
+	getLogLevel GetLogLevelType
 }
 
 type ctxKeyObsContext struct{}
@@ -39,10 +41,12 @@ type SpanConfig struct {
 	TraceId      string
 	SpanId       string
 	ParentSpanId string
+	GetLogLevel  GetLogLevelType
 }
 
 type ObsConfig struct {
-	GetLogLevel func(err *Error) Level
+	Handler     Handler
+	GetLogLevel GetLogLevelType
 	Level       Level
 }
 

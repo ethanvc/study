@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type nopWriteCloser struct {
@@ -15,5 +17,7 @@ func (*nopWriteCloser) Close() error { return nil }
 func TestJsonHandler_Handle(t *testing.T) {
 	var writer nopWriteCloser
 	handler := NewJsonHandler(&writer)
-	ctx := WithObsContext(context.Background(), &ObsConfig{Ha})
+	ctx := WithObsContext(context.Background(), &ObsConfig{Handler: handler})
+	LogInfo(ctx, "test")
+	require.Equal(t, "test|INFO|?:0|0:0:0|test|{}", writer.String())
 }
