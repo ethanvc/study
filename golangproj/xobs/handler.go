@@ -39,6 +39,11 @@ func (h *JsonHandler) Handle(ctx context.Context, item LogItem) {
 	state.buf.WriteString(span.GetParentSpanId())
 	state.buf.WriteByte('|')
 	state.buf.WriteString(item.Msg)
+	if item.NumAttrs() == 0 {
+		state.buf.WriteByte('\n')
+		h.writer.Write(state.buf.Bytes())
+		return
+	}
 	state.buf.WriteByte('|')
 
 	enc := state.enc
@@ -50,7 +55,6 @@ func (h *JsonHandler) Handle(ctx context.Context, item LogItem) {
 	})
 	enc.WriteToken(logjson.EndObject)
 	state.buf.Write(state.attrBuf.Bytes())
-	state.buf.WriteByte('\n')
 
 	h.writer.Write(state.buf.Bytes())
 }
