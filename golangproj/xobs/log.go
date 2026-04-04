@@ -48,7 +48,7 @@ type ObsConfig struct {
 
 func WithSpanContext(ctx context.Context, config *SpanConfig) context.Context {
 	span := &Span{}
-	span.init(config)
+	span.init(ctx, config)
 	ctx, obsCtx := withObsContext(ctx)
 	obsCtx.span = span
 	return ctx

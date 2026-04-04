@@ -16,26 +16,19 @@ type Span struct {
 
 func (s *Span) init(ctx context.Context, config *SpanConfig) {
 	s.name = config.Name
-	s.traceId = config.TraceId
-	s.spanId = config.SpanId
-	s.parentSpanId = config.ParentSpanId
 	s.startTime = time.Now()
-
-	parentSpan := GetObsContext(ctx).GetSpan()
-	if parentSpan != nil {
+	if config.TraceId != "" {
+		s.traceId = config.TraceId
+		s.spanId = config.SpanId
+		s.parentSpanId = config.ParentSpanId
+	} else if parentSpan := GetObsContext(ctx).GetSpan(); parentSpan != nil {
 		s.traceId = parentSpan.traceId
 		s.parentSpanId = parentSpan.spanId
-		s.spanId = GenerateSpanIdFunc()
+		s.spanId = GenerateSpanIdFunc(false)
 	} else {
-		if s.traceId == "" {
-			s.traceId = GenerateTraceIdFunc()
-		}
-		if s.spanId == "" {
-			s.spanId = GenerateSpanIdFunc()
-		}
-		if s.parentSpanId == "" {
-			s.parentSpanId = GenerateSpanIdFunc()
-		}
+		s.traceId = GenerateTraceIdFunc()
+		s.spanId = GenerateSpanIdFunc(false)
+		s.parentSpanId = GenerateSpanIdFunc(true)
 	}
 }
 

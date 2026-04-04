@@ -14,7 +14,10 @@ func GenerateTraceId() string {
 	return hex.EncodeToString(buf[:])
 }
 
-func GenerateSpanId() string {
+func GenerateSpanId(rootSpan bool) string {
+	if rootSpan {
+		return "0"
+	}
 	var buf [8]byte
 	rand.Read(buf[:])
 	return hex.EncodeToString(buf[:])
