@@ -24,11 +24,11 @@ func (s *Span) init(ctx context.Context, config *SpanConfig) {
 	} else if parentSpan := GetObsContext(ctx).GetSpan(); parentSpan != nil {
 		s.traceId = parentSpan.traceId
 		s.parentSpanId = parentSpan.spanId
-		s.spanId = GenerateSpanIdFunc(false)
+		s.spanId = generateSpanIdFunc(false)
 	} else {
-		s.traceId = GenerateTraceIdFunc()
-		s.spanId = GenerateSpanIdFunc(false)
-		s.parentSpanId = GenerateSpanIdFunc(true)
+		s.traceId = generateTraceIdFunc()
+		s.spanId = generateSpanIdFunc(false)
+		s.parentSpanId = generateSpanIdFunc(true)
 	}
 }
 

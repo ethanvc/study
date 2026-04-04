@@ -5,8 +5,16 @@ import (
 	"encoding/hex"
 )
 
-var GenerateTraceIdFunc = GenerateTraceId
-var GenerateSpanIdFunc = GenerateSpanId
+var generateTraceIdFunc = GenerateTraceId
+var generateSpanIdFunc = GenerateSpanId
+
+func SetGenerateTraceIdFunc(f func() string) {
+	generateTraceIdFunc = f
+}
+
+func SetGenerateSpanIdFunc(f func(rootSpan bool) string) {
+	generateSpanIdFunc = f
+}
 
 func GenerateTraceId() string {
 	var buf [16]byte
