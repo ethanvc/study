@@ -25,6 +25,12 @@ func TestJsonHandler_Handle(t *testing.T) {
 	writer.Reset()
 	LogInfo(ctx, "test", String("key", "value"))
 	require.Equal(t, `2026-01-01T00:00:00Z|info|xobs/handler_test.go:26|1234567890:1234567890:1234567890|test|{"key":"value"}`+"\n", writer.String())
+	writer.Reset()
+	type Abc struct {
+		Name string
+	}
+	LogInfo(ctx, "test", Any("abc", &Abc{Name: "value"}))
+	require.Equal(t, `2026-01-01T00:00:00Z|info|xobs/handler_test.go:32|1234567890:1234567890:1234567890|test|{"abc":{"Name":"value"}}`+"\n", writer.String())
 }
 
 func TestGetCallerPosition(t *testing.T) {

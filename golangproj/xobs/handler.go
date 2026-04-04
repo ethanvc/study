@@ -77,7 +77,9 @@ func writeAttrValue(enc *logjson.Encoder, v Value) {
 	case KindTime:
 		enc.WriteToken(logjson.TokenString(v.Time().Format(time.RFC3339Nano)))
 	case KindAny:
-		enc.WriteToken(logjson.TokenString(fmt.Sprint(v.Any())))
+		if err := logjson.MarshalEncode(enc, v.Any()); err != nil {
+			enc.WriteToken(logjson.TokenString(fmt.Sprint(v.Any())))
+		}
 	default:
 		enc.WriteToken(logjson.Null)
 	}

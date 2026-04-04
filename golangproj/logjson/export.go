@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/ethanvc/study/golangproj/logjson/internal/gostd/encoding/json/jsontext"
+	jsonv2 "github.com/ethanvc/study/golangproj/logjson/internal/gostd/encoding/json/v2"
 )
 
 type (
@@ -40,3 +41,6 @@ func AllowDuplicateNames(v bool) Options { return jsontext.AllowDuplicateNames(v
 func NewEncoderOf(w io.Writer) *Encoder {
 	return NewEncoder(w, AllowDuplicateNames(true))
 }
+
+var Marshal = jsonv2.Marshal
+var MarshalEncode = jsonv2.MarshalEncode
