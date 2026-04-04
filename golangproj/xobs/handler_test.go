@@ -21,7 +21,10 @@ func TestJsonHandler_Handle(t *testing.T) {
 	handler := NewJsonHandler(&writer)
 	ctx := WithObsContext(context.Background(), &ObsConfig{Handler: handler})
 	LogInfo(ctx, "test")
-	require.Equal(t, "test|INFO|?:0|0:0:0|test|{}", writer.String())
+	require.Equal(t, "2026-01-01T00:00:00Z|info|xobs/handler_test.go:23|1234567890:1234567890:1234567890|test\n", writer.String())
+	writer.Reset()
+	LogInfo(ctx, "test", String("key", "value"))
+	require.Equal(t, `2026-01-01T00:00:00Z|info|xobs/handler_test.go:26|1234567890:1234567890:1234567890|test|{"key":"value"}`+"\n", writer.String())
 }
 
 func TestGetCallerPosition(t *testing.T) {
