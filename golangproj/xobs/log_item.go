@@ -18,17 +18,17 @@ const (
 func (l Level) String() string {
 	switch l {
 	case LevelNotSet:
-		return "NotSet"
+		return "not_set"
 	case LevelDbg:
-		return "Dbg"
+		return "dbg"
 	case LevelInfo:
-		return "Info"
+		return "info"
 	case LevelWarn:
-		return "Warn"
+		return "warn"
 	case LevelErr:
-		return "Err"
+		return "err"
 	}
-	return "Unknown"
+	return "unknown"
 }
 
 type LogItem struct {

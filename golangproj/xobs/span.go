@@ -14,6 +14,12 @@ type Span struct {
 	parentSpanId string
 }
 
+func NewSpan(ctx context.Context, config *SpanConfig) *Span {
+	span := &Span{}
+	span.init(ctx, config)
+	return span
+}
+
 func (s *Span) init(ctx context.Context, config *SpanConfig) {
 	s.name = config.Name
 	s.startTime = time.Now()
@@ -21,7 +27,7 @@ func (s *Span) init(ctx context.Context, config *SpanConfig) {
 		s.traceId = config.TraceId
 		s.spanId = config.SpanId
 		s.parentSpanId = config.ParentSpanId
-	} else if parentSpan := GetObsContext(ctx).GetSpan(); parentSpan != nil {
+	} else if parentSpan := GetObsContext(ctx).getSpan(); parentSpan != nil {
 		s.traceId = parentSpan.traceId
 		s.parentSpanId = parentSpan.spanId
 		s.spanId = generateSpanIdFunc(false)

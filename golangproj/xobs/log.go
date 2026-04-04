@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
-	"time"
 )
 
 func LogInfo(ctx context.Context, event string, args ...any) {
@@ -75,9 +74,6 @@ func withObsContext(ctx context.Context) (context.Context, *ObsContext) {
 
 func GetObsContext(ctx context.Context) *ObsContext {
 	val, _ := ctx.Value(ctxKeyObsContext{}).(*ObsContext)
-	if val == nil {
-		return defaultObCtx
-	}
 	return val
 }
 
@@ -97,10 +93,18 @@ func (oc *ObsContext) GetRootSpan() *Span {
 	if span != nil {
 		return span
 	}
-	return defaultObCtx.span
+	return defaultSpan
 }
 
 func (oc *ObsContext) GetSpan() *Span {
+	span := oc.getSpan()
+	if span != nil {
+		return span
+	}
+	return defaultSpan
+}
+
+func (oc *ObsContext) getSpan() *Span {
 	for oc != nil {
 		if oc.span != nil {
 			return oc.span
@@ -145,9 +149,9 @@ func (oc *ObsContext) LogRaw(ctx context.Context, obsCtx *ObsContext, skip int, 
 	}
 	item := LogItem{
 		Msg:      event,
-		Time:     time.Now(),
+		Time:     sNow(),
 		Level:    lvl,
-		Position: GetCallerPosition(skip),
+		Position: GetCallerPosition(skip + 1),
 		ObsCtx:   obsCtx,
 	}
 	item.Add(args...)
@@ -162,12 +166,6 @@ type KV struct {
 type Handler interface {
 	Handle(ctx context.Context, item LogItem)
 	Flush()
-}
-
-var defaultObCtx = &ObsContext{
-	span: &Span{
-		name: "default",
-	},
 }
 
 // lastTwoPathParts 返回路径的最后两段（如 pkg/foo.go）；不足两段则只返回最后一段。
