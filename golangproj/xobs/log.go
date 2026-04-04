@@ -126,7 +126,7 @@ func (oc *ObsContext) GetHandler() Handler {
 		}
 		oc = oc.parent
 	}
-	panic("never come here")
+	return defaultHandler
 }
 
 func (oc *ObsContext) GetLevel() Level {

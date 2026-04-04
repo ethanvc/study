@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"os"
 	"time"
 )
 
@@ -11,6 +12,8 @@ var generateTraceIdFunc = GenerateTraceId
 var generateSpanIdFunc = GenerateSpanId
 
 var defaultSpan = newDefaultSpan()
+
+var defaultHandler = NewJsonHandler(os.Stdout)
 
 // for test only
 var sNow = time.Now

@@ -12,10 +12,10 @@ import (
 )
 
 type JsonHandler struct {
-	writer io.WriteCloser
+	writer io.Writer
 }
 
-func NewJsonHandler(writer io.WriteCloser) *JsonHandler {
+func NewJsonHandler(writer io.Writer) *JsonHandler {
 	return &JsonHandler{
 		writer: writer,
 	}
@@ -86,7 +86,10 @@ func writeAttrValue(enc *logjson.Encoder, v Value) {
 }
 
 func (h *JsonHandler) Flush() {
-	h.writer.Close()
+	fluster, ok := h.writer.(io.Flusher)
+	if ok {
+		fluster.Flush()
+	}
 }
 
 var sLogStatePool = sync.Pool{
