@@ -46,6 +46,7 @@ func (h *JsonHandler) Handle(ctx context.Context, item LogItem) {
 	}
 	state.buf.WriteByte('|')
 
+	state.enc.Reset(&state.buf, logjson.AllowDuplicateNames(true))
 	enc := state.enc
 	enc.WriteToken(logjson.BeginObject)
 	item.Attrs(func(a Attr) bool {
@@ -54,7 +55,6 @@ func (h *JsonHandler) Handle(ctx context.Context, item LogItem) {
 		return true
 	})
 	enc.WriteToken(logjson.EndObject)
-	state.buf.Write(state.attrBuf.Bytes())
 
 	h.writer.Write(state.buf.Bytes())
 }
@@ -86,9 +86,8 @@ func writeAttrValue(enc *logjson.Encoder, v Value) {
 }
 
 func (h *JsonHandler) Flush() {
-	fluster, ok := h.writer.(io.Flusher)
-	if ok {
-		fluster.Flush()
+	if flusher, ok := h.writer.(interface{ Flush() error }); ok {
+		flusher.Flush()
 	}
 }
 
@@ -99,19 +98,16 @@ var sLogStatePool = sync.Pool{
 }
 
 type logState struct {
-	buf     bytes.Buffer
-	attrBuf bytes.Buffer
-	enc     *logjson.Encoder
+	buf bytes.Buffer
+	enc *logjson.Encoder
 }
 
 func newLogState() *logState {
 	s := &logState{}
-	s.enc = logjson.NewEncoderOf(&s.attrBuf)
+	s.enc = logjson.NewEncoderOf(&s.buf)
 	return s
 }
 
 func (s *logState) Reset() {
 	s.buf.Reset()
-	s.attrBuf.Reset()
-	s.enc.Reset(&s.attrBuf, logjson.AllowDuplicateNames(true))
 }
