@@ -571,9 +571,7 @@ func parseFieldOptions(sf reflect.StructField) (out fieldOptions, ignored bool, 
 		}
 		seenOpts[opt] = true
 	}
-	if err2 := parseLogjsonFieldOptions(sf, &out); err2 != nil {
-		err = cmp.Or(err, err2)
-	}
+	parseLogjsonFieldOptions(sf, &out)
 	return out, false, err
 }
 
