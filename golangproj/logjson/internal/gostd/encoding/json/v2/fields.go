@@ -257,6 +257,7 @@ func makeStructFields(root reflect.Type) (fs structFields, serr *SemanticError) 
 
 				f.id = len(allFields)
 				f.fncs = lookupArshaler(sf.Type)
+				logjsonWrapArshaler(&f, sf.Type)
 				allFields = append(allFields, f)
 			}
 		}
@@ -395,6 +396,7 @@ type fieldOptions struct {
 	omitempty      bool
 	string         bool
 	format         string
+	logjsonFieldOptions
 }
 
 // parseFieldOptions parses the `json` tag in a Go struct field as
@@ -568,6 +570,9 @@ func parseFieldOptions(sf reflect.StructField) (out fieldOptions, ignored bool, 
 			err = cmp.Or(err, fmt.Errorf("Go struct field %s has duplicate appearance of `%s` tag option", sf.Name, rawOpt))
 		}
 		seenOpts[opt] = true
+	}
+	if err2 := parseLogjsonFieldOptions(sf, &out); err2 != nil {
+		err = cmp.Or(err, err2)
 	}
 	return out, false, err
 }

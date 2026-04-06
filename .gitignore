@@ -14,3 +14,4 @@ golangproj/dkit/cmd/dkit/main
 /bin/
 *.log
 /golangproj/dkit/cmd/dkit/dkit
+__debug_bin*
