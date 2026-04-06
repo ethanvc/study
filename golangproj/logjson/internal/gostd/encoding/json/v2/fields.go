@@ -257,7 +257,7 @@ func makeStructFields(root reflect.Type) (fs structFields, serr *SemanticError) 
 
 				f.id = len(allFields)
 				f.fncs = lookupArshaler(sf.Type)
-				logjsonWrapArshaler(&f, sf.Type)
+				logjsonWrapArshaler(&f)
 				allFields = append(allFields, f)
 			}
 		}
