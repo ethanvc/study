@@ -165,7 +165,6 @@ type KV struct {
 
 type Handler interface {
 	Handle(ctx context.Context, item LogItem)
-	Flush()
 }
 
 // lastTwoPathParts 返回路径的最后两段（如 pkg/foo.go）；不足两段则只返回最后一段。
