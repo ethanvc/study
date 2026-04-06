@@ -7,8 +7,8 @@ golangproj/dkit/cmd/dkit/main
 /*/target/.*
 /*/target/CACHEDIR.TAG
 .gemini/
-*.test.json
-*.tmp.txt
+*.local.json
+*.local.txt
 .vscode/*
 !.vscode/launch.json
 /bin/
