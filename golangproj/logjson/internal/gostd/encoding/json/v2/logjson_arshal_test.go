@@ -3,14 +3,15 @@ package json_test
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"testing"
 
 	json "github.com/ethanvc/study/golangproj/logjson/internal/gostd/encoding/json/v2"
 )
 
-func md5Hex(s string) string {
+func md5Val(s string) string {
 	h := md5.Sum([]byte(s))
-	return hex.EncodeToString(h[:])
+	return fmt.Sprintf("len=%d,%s", len(s), hex.EncodeToString(h[:]))
 }
 
 func TestLogjsonMD5String(t *testing.T) {
@@ -23,7 +24,7 @@ func TestLogjsonMD5String(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"name":"hello","body":"` + md5Hex("world") + `"}`
+	want := `{"name":"hello","body":"` + md5Val("world") + `"}`
 	if string(got) != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
@@ -39,7 +40,7 @@ func TestLogjsonMD5Bytes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"name":"hello","data":"` + md5Hex("world") + `"}`
+	want := `{"name":"hello","data":"` + md5Val("world") + `"}`
 	if string(got) != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
@@ -54,7 +55,7 @@ func TestLogjsonMD5EmptyString(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"body":"` + md5Hex("") + `"}`
+	want := `{"body":"` + md5Val("") + `"}`
 	if string(got) != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
@@ -69,7 +70,7 @@ func TestLogjsonMD5NilBytes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"data":"` + md5Hex("") + `"}`
+	want := `{"data":"` + md5Val("") + `"}`
 	if string(got) != want {
 		t.Errorf("got %s, want %s", got, want)
 	}

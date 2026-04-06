@@ -3,6 +3,7 @@ package json
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"reflect"
 
 	"github.com/ethanvc/study/golangproj/logjson/internal/gostd/encoding/json/internal/jsonopts"
@@ -26,7 +27,7 @@ func logjsonWrapArshaler(f *structField, t reflect.Type) {
 				return origFncs.marshal(enc, va, mo)
 			}
 			h := md5.Sum(data)
-			return enc.WriteToken(jsontext.String(hex.EncodeToString(h[:])))
+			return enc.WriteToken(jsontext.String(fmt.Sprintf("len=%d,%s", len(data), hex.EncodeToString(h[:]))))
 		},
 		unmarshal:  origFncs.unmarshal,
 		nonDefault: true,
