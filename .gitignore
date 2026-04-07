@@ -15,3 +15,4 @@ golangproj/dkit/cmd/dkit/main
 *.log
 /golangproj/dkit/cmd/dkit/dkit
 __debug_bin*
+*.tmp.txt
