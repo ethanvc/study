@@ -114,7 +114,7 @@ func (oc *ObsContext) GetLevel() Level {
 		}
 		oc = oc.parent
 	}
-	return LevelInfo
+	return GetDefaultLogLevel()
 }
 
 func (oc *ObsContext) Enabled(lvl Level) bool {

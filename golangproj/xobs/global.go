@@ -15,6 +15,16 @@ var defaultSpan = newDefaultSpan()
 
 var defaultHandler = NewJsonHandler(os.Stdout)
 
+var defaultLogLevel = LevelInfo
+
+func SetDefaultLogLevel(lvl Level) {
+	defaultLogLevel = lvl
+}
+
+func GetDefaultLogLevel() Level {
+	return defaultLogLevel
+}
+
 // for test only
 var sNow = time.Now
 

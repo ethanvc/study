@@ -33,6 +33,39 @@ func TestJsonHandler_Handle(t *testing.T) {
 	require.Equal(t, `2026-01-01T00:00:00Z|info|xobs/handler_test.go:32|1234567890:1234567890:1234567890|test|{"abc":{"Name":"value"}}`+"\n", writer.String())
 }
 
+func TestDefaultLogLevel(t *testing.T) {
+	orig := GetDefaultLogLevel()
+	defer SetDefaultLogLevel(orig)
+
+	var writer nopWriteCloser
+	handler := NewJsonHandler(&writer)
+	ctx := WithObsContext(context.Background(), &ObsConfig{Handler: handler})
+
+	// Default level is Info, so Dbg should be filtered out.
+	LogInfo(ctx, "visible")
+	assert.NotEmpty(t, writer.String())
+	writer.Reset()
+
+	obsCtx := GetObsContext(ctx)
+	assert.False(t, obsCtx.Enabled(LevelDbg))
+	assert.True(t, obsCtx.Enabled(LevelInfo))
+
+	// Raise default level to Err: Info should now be filtered out.
+	SetDefaultLogLevel(LevelErr)
+	writer.Reset()
+	LogInfo(ctx, "should_not_appear")
+	assert.Empty(t, writer.String())
+
+	LogErr(ctx, "visible_err")
+	assert.NotEmpty(t, writer.String())
+	assert.Contains(t, writer.String(), "visible_err")
+
+	// Lower default level to Dbg: everything should pass.
+	SetDefaultLogLevel(LevelDbg)
+	writer.Reset()
+	assert.True(t, obsCtx.Enabled(LevelDbg))
+}
+
 func TestGetCallerPosition(t *testing.T) {
 	pos := GetCallerPosition(0)
 	assert.True(t, strings.HasPrefix(pos, "xobs/handler_test.go:"))
