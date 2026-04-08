@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"os"
 	"time"
+
+	"google.golang.org/grpc/codes"
 )
 
 var generateTraceIdFunc = GenerateTraceId
@@ -16,6 +18,16 @@ var defaultSpan = newDefaultSpan()
 var defaultHandler = NewJsonHandler(os.Stdout)
 
 var defaultLogLevel = LevelInfo
+
+var defaultGetLogLevel = GetLogLevel
+
+func SetDefaultGetLogLevel(f GetLogLevelType) {
+	defaultGetLogLevel = f
+}
+
+func GetDefaultGetLogLevel() GetLogLevelType {
+	return defaultGetLogLevel
+}
 
 func SetDefaultLogLevel(lvl Level) {
 	defaultLogLevel = lvl
@@ -61,4 +73,21 @@ func newDefaultSpan() *Span {
 	return NewSpan(context.Background(), &SpanConfig{
 		Name: "default",
 	})
+}
+
+func GetLogLevel(err error) Level {
+	if err == nil {
+		return LevelInfo
+	}
+	switch realErr := err.(type) {
+	case *Error:
+		switch realErr.GetCode() {
+		case codes.OK, codes.NotFound, codes.AlreadyExists, codes.InvalidArgument, codes.Unauthenticated, codes.FailedPrecondition:
+			return LevelInfo
+		default:
+			return LevelErr
+		}
+	default:
+		return LevelErr
+	}
 }
