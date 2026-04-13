@@ -7,7 +7,7 @@ macOS 内核提供 utun (User Tunnel) 驱动。mihomo 通过以下系统调用�
 ### 1.1 创建控制 socket
 
 ```c
-int fd = socket(AF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL/*2*/);
+int tunFd = socket(AF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL/*2*/);
 ```
 
 `AF_SYSTEM` 是 macOS 专有的地址族，用于和内核扩展/控制接口通信。`SYSPROTO_CONTROL` 表示 Kernel Control Socket 协议。
@@ -17,7 +17,7 @@ int fd = socket(AF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL/*2*/);
 ```c
 struct ctl_info ctlInfo;
 strcpy(ctlInfo.ctl_name, "com.apple.net.utun_control");
-ioctl(fd, CTLIOCGINFO, &ctlInfo);  // 获取 ctlInfo.ctl_id
+ioctl(tunFd, CTLIOCGINFO, &ctlInfo);  // 获取 ctlInfo.ctl_id
 ```
 
 ### 1.3 connect 创建 utun 设备
@@ -27,19 +27,22 @@ struct sockaddr_ctl sc = {
     .sc_id   = ctlInfo.ctl_id,
     .sc_unit = ifIndex + 1,    // utun0 → unit=1, utun1 → unit=2
 };
-connect(fd, (struct sockaddr*)&sc, sizeof(sc));
+connect(tunFd, (struct sockaddr*)&sc, sizeof(sc));
 ```
 
-`connect()` 完成后内核创建 `utunN` 接口。之后对该 fd 的 `read()/write()` 直接收发 IP 包。
+`connect()` 不返回新 fd，而是将 `tunFd` 绑定到内核 utun 控制单元，内核侧随之创建 `utunN` 接口。之后对 `tunFd` 的 `read()/write()` 直接收发 IP 包。**后文所有 `tunFd` 均指此 fd。**
 
 ### 1.4 设置 MTU
 
+`SIOCSIFMTU` 等网络管理 ioctl 要求 fd 类型为 `AF_INET`，`tunFd`（`AF_SYSTEM`）不满足，所以临时创建一个 `AF_INET` socket 做管理句柄（下面 1.5、1.6 同理）。`mgmtFd` 不收发数据，用完即 `close()`。
+
 ```c
-int sock = socket(AF_INET, SOCK_DGRAM, 0);
+int mgmtFd = socket(AF_INET, SOCK_DGRAM, 0);  // 临时管理句柄，非数据通道
 struct ifreq_mtu ifr;
 strcpy(ifr.ifr_name, "utun0");
 ifr.ifr_mtu = 9000;
-ioctl(sock, SIOCSIFMTU, &ifr);
+ioctl(mgmtFd, SIOCSIFMTU, &ifr);
+close(mgmtFd);
 ```
 
 ### 1.5 配置 IPv4 地址（SIOCAIFADDR）
@@ -51,7 +54,7 @@ struct ifaliasreq {
     struct sockaddr_in ifra_dstaddr;   // 点对点目标地址
     struct sockaddr_in ifra_mask;      // 子网掩码
 };
-ioctl(sock, SIOCAIFADDR, &ifReq);
+ioctl(mgmtFd, SIOCAIFADDR, &ifReq);  // mgmtFd = socket(AF_INET, SOCK_DGRAM, 0)
 ```
 
 ### 1.6 配置 IPv6 地址（SIOCAIFADDR_IN6）
@@ -65,7 +68,7 @@ struct in6_aliasreq {
     uint32_t            ifra_flags;    // IN6_IFF_NODAD | IN6_IFF_SECURED
     struct addr_lifetime ifra_lifetime; // vltime = pltime = 0xFFFFFFFF (infinite)
 };
-ioctl(sock6, SIOCAIFADDR_IN6/*0x8080266A*/, &ifReq6);
+ioctl(mgmtFd6, SIOCAIFADDR_IN6/*0x8080266A*/, &ifReq6);  // mgmtFd6 = socket(AF_INET6, SOCK_DGRAM, 0)
 ```
 
 `IN6_IFF_NODAD` 跳过 Duplicate Address Detection，`IN6_IFF_SECURED` 标记为安全地址。
@@ -89,7 +92,7 @@ setsockopt(tunFd, SYSPROTO_CONTROL/*2*/, UTUN_OPT_MAX_PENDING_PACKETS/*16*/, &ba
 mihomo 通过 `auto-route` 将流量导向 utun，实现方式是操作系统路由表：
 
 ```c
-int routeSock = socket(AF_ROUTE, SOCK_RAW, 0);
+int routeFd = socket(AF_ROUTE, SOCK_RAW, 0);  // 路由操作句柄
 
 struct rt_msghdr rtm = {
     .rtm_type    = RTM_ADD,
@@ -102,7 +105,8 @@ struct rt_msghdr rtm = {
 // Addrs[RTAX_NETMASK] = 子网掩码
 // Addrs[RTAX_GATEWAY] = utun 的 gateway 地址 (如 198.18.0.1)
 
-write(routeSock, &routeMessage, len);
+write(routeFd, &routeMessage, len);
+close(routeFd);
 ```
 
 典型做法是添加 `0.0.0.0/1` + `128.0.0.0/1` 两条路由覆盖全部 IPv4 流量（避免覆盖默认路由 `0.0.0.0/0`）。
@@ -127,7 +131,7 @@ struct msghdr_x {
     struct msghdr msg;
     uint32_t      datalen;
 };
-int n = syscall(SYS_RECVMSG_X, fd, msgHdrs, count, MSG_DONTWAIT, 0, 0);
+int n = syscall(SYS_RECVMSG_X, tunFd, msgHdrs, count, MSG_DONTWAIT, 0, 0);
 ```
 
 `recvmsg_x` 是 macOS XNU 内核的私有批量收包接口，一次系统调用可读取多个消息。每个消息通过 `iovec` 散列读取：`iovec[0]` = 4 字节 AF 头，`iovec[1]` = IP 包内容。
@@ -135,7 +139,7 @@ int n = syscall(SYS_RECVMSG_X, fd, msgHdrs, count, MSG_DONTWAIT, 0, 0);
 ### 3.2 批量发包 — sendmsg_x（可选）
 
 ```c
-int n = syscall(SYS_SENDMSG_X, fd, msgHdrs, count, MSG_DONTWAIT, 0, 0);
+int n = syscall(SYS_SENDMSG_X, tunFd, msgHdrs, count, MSG_DONTWAIT, 0, 0);
 ```
 
 默认关闭（`SendMsgX=false`），因为多线程下载时可能触发内核冻结。
@@ -148,7 +152,7 @@ struct iovec iov[2] = {
     { .iov_base = "\x00\x00\x00\x02", .iov_len = 4 },  // AF_INET header
     { .iov_base = ip_packet,           .iov_len = len },
 };
-writev(fd, iov, 2);
+writev(tunFd, iov, 2);
 ```
 
 ### 3.4 单包读取 — readv（非批量模式）
@@ -158,7 +162,7 @@ struct iovec iov[2] = {
     { .iov_base = header_buf, .iov_len = 4 },
     { .iov_base = packet_buf, .iov_len = mtu },
 };
-readv(fd, iov, 2);
+readv(tunFd, iov, 2);
 ```
 
 ### 3.5 I/O 多路复用 — kqueue
@@ -197,10 +201,10 @@ kevent(kq, NULL, 0, revents, 2, NULL);  // 阻塞等待
 
 ```c
 // 在 utun 地址上监听一个随机端口
-int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+int listenFd = socket(AF_INET, SOCK_STREAM, 0);  // System 栈的 TCP 监听
 struct sockaddr_in addr = { .sin_addr.s_addr = inet_addr("198.18.0.1"), .sin_port = 0 };
-bind(listen_fd, (struct sockaddr*)&addr, sizeof(addr));
-listen(listen_fd, SOMAXCONN);
+bind(listenFd, (struct sockaddr*)&addr, sizeof(addr));
+listen(listenFd, SOMAXCONN);
 // getsockname 获取内核分配的 tcpPort
 ```
 
@@ -244,7 +248,7 @@ writev(tunFd, iov, 2);
 5. **accept 拿到连接**：通过 `getpeername` 获取 natPort，查 NAT 表恢复原始目标
 
 ```c
-int conn_fd = accept(listen_fd, (struct sockaddr*)&peer, &len);
+int connFd = accept(listenFd, (struct sockaddr*)&peer, &len);
 uint16_t natPort = ntohs(peer.sin_port);
 Session *sess = &nat_table[natPort];
 // sess->dst + sess->dport = 原始目标 93.184.216.34:443
@@ -269,10 +273,12 @@ TCP 走 System（利用内核 TCP 栈性能好），UDP 走 gVisor（无需 NAT�
 
 ```c
 int ifIndex = if_nametoindex("en0");
-setsockopt(fd, IPPROTO_IP, IP_BOUND_IF, &ifIndex, sizeof(ifIndex));
+setsockopt(outFd, IPPROTO_IP, IP_BOUND_IF, &ifIndex, sizeof(ifIndex));
 // IPv6:
-setsockopt(fd, IPPROTO_IPV6, IPV6_BOUND_IF, &ifIndex, sizeof(ifIndex));
+setsockopt(outFd, IPPROTO_IPV6, IPV6_BOUND_IF, &ifIndex, sizeof(ifIndex));
 ```
+
+`outFd` 是代理出站连接的 socket（连接远程代理服务器的那个）。
 
 这是 macOS 特有的 socket 选项（Linux 用 `SO_BINDTODEVICE`），将 socket 绑定到指定接口索引。
 
@@ -281,11 +287,11 @@ setsockopt(fd, IPPROTO_IPV6, IPV6_BOUND_IF, &ifIndex, sizeof(ifIndex));
 ## 6. 网络变化监控 — AF_ROUTE socket
 
 ```c
-int routeSock = socket(AF_ROUTE, SOCK_RAW, 0);
-fcntl(routeSock, F_SETFL, O_NONBLOCK);
+int monitorFd = socket(AF_ROUTE, SOCK_RAW, 0);  // 路由监控句柄（常驻）
+fcntl(monitorFd, F_SETFL, O_NONBLOCK);
 ```
 
-持续 `read(routeSock)` 监听路由表变化。收到 `RTM_*` 消息时解析，若是路由变更事件则触发回调（刷新接口缓存、重置 DNS 连接）。
+持续 `read(monitorFd)` 监听路由表变化。收到 `RTM_*` 消息时解析，若是路由变更事件则触发回调（刷新接口缓存、重置 DNS 连接）。
 
 ### 6.1 检测默认网关接口
 
@@ -304,17 +310,17 @@ sysctl(mib, 6, buf, &len, NULL, 0);
 作为 VPN 扩展运行时无法直接读路由表，改用 `connect()` 探测：
 
 ```c
-int sock = socket(AF_INET, SOCK_STREAM, 0);
+int probeFd = socket(AF_INET, SOCK_STREAM, 0);  // 临时探测句柄
 struct sockaddr_in target = {
     .sin_family = AF_INET,
     .sin_addr.s_addr = inet_addr("10.255.255.255"),
     .sin_port = htons(80),
 };
-connect(sock, (struct sockaddr*)&target, sizeof(target)); // 异步，不会真正建连
+connect(probeFd, (struct sockaddr*)&target, sizeof(target)); // 异步，不会真正建连
 
 struct sockaddr_in local;
 socklen_t len = sizeof(local);
-getsockname(sock, (struct sockaddr*)&local, &len);  // 拿到内核选择的出口 IP
+getsockname(probeFd, (struct sockaddr*)&local, &len);  // 拿到内核选择的出口 IP
 // 通过出口 IP 反查接口
 ```
 
@@ -334,7 +340,7 @@ rdr pass on lo0 proto tcp from any to any -> 127.0.0.1 port 7892
 ### 7.2 DIOCNATLOOK 查询
 
 ```c
-int pf = open("/dev/pf", O_RDONLY);
+int pfFd = open("/dev/pf", O_RDONLY);  // PF 防火墙句柄
 
 struct pfioc_natlook nl = {
     .af        = AF_INET,
@@ -345,7 +351,8 @@ struct pfioc_natlook nl = {
     .daddr     = local_ip,        // 本地监听 IP（被 rdr 改写后的目标）
     .dport     = local_port,      // redir-port
 };
-ioctl(pf, DIOCNATLOOK, &nl);
+ioctl(pfFd, DIOCNATLOOK, &nl);
+close(pfFd);
 // nl.rdaddr = 原始目标 IP
 // nl.rdport = 原始目标端口
 ```
@@ -418,8 +425,8 @@ IP 栈处理                                              │
 └─ 规则匹配 → 选择出站代理                               │
                                                       │
 ▼                                                      │
-出站 socket                                            │
-│  setsockopt(fd, IPPROTO_IP, IP_BOUND_IF, en0_index) │
+outFd (出站 socket)                                     │
+│  setsockopt(outFd, IPPROTO_IP, IP_BOUND_IF, en0_idx)│
 │  确保流量走物理网卡，不回流 utun                        │
 │                                                     │
 ▼                                                     │
