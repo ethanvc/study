@@ -201,44 +201,47 @@ kevent(kq, NULL, 0, revents, 2, NULL);  // 阻塞等待
 
 ### 4.1 System 栈（默认）— 用户态 NAT 转发到内核 TCP
 
-核心思路：**在用户态解析 IP 包头，做 NAT 改写，然后回写 utun 让内核 TCP/IP 栈处理**。
+**核心矛盾**：从 utun 读出的是原始 IP 包（L3），但代理需要的是 TCP 连接（L4）。一堆 IP 字节如何变成一个可以 `read()`/`write()` 的 TCP socket？
 
-```
-应用 → utun（IP 包）→ 用户态解析 → NAT 改写 IP/TCP 头 → 回写 utun → 内核 TCP → accept()
-```
+System 栈的做法是：**借用内核的 TCP 栈完成 TCP 重组，但通过 NAT 把连接"骗"到自己的监听端口上**。
 
-具体流程（TCP）：
+以 `curl https://example.com`（目标 `93.184.216.34:443`）为例，完整流程如下：
 
-1. **启动时监听 TCP**：
+#### 步骤 1：启动时在 utun 地址上预先监听
 
 ```c
-// 在 utun 地址上监听一个随机端口
-int listenFd = socket(AF_INET, SOCK_STREAM, 0);  // System 栈的 TCP 监听
+int listenFd = socket(AF_INET, SOCK_STREAM, 0);
 struct sockaddr_in addr = { .sin_addr.s_addr = inet_addr("198.18.0.1"), .sin_port = 0 };
 bind(listenFd, (struct sockaddr*)&addr, sizeof(addr));
 listen(listenFd, SOMAXCONN);
-// getsockname 获取内核分配的 tcpPort
+// getsockname 获取内核分配的 tcpPort，假设为 10000
 ```
 
-2. **读 IP 包**：从 utun 读出 `[4B AF头][IP头][TCP头][payload]`
+这是一个普通的 TCP 服务器，监听在 utun 的 IP 上。
 
-3. **NAT 改写**（直接修改 IP 包内存）：
+#### 步骤 2：应用发包，utun 截获
+
+curl 发出 SYN 包：`src=10.0.0.5:12345 → dst=93.184.216.34:443`。因为路由表把 `0.0.0.0/1` 和 `128.0.0.0/1` 都指向了 utun，这个包不会走物理网卡，而是被送进 utun 设备。mihomo 通过 `recvmsg_x(tunFd)` 读到这个原始 IP 包。
+
+#### 步骤 3：NAT 改写（最关键的一步）
+
+在用户态直接修改 IP 包的字节，把目标地址改成自己的 `listenFd`：
 
 ```c
-// 原始: src=10.0.0.5:12345 → dst=93.184.216.34:443
-// 改写为:
 struct iphdr  *ip  = packet;
 struct tcphdr *tcp = packet + ip->ihl * 4;
 
-// 记录 NAT 映射: natPort → {原始src, 原始dst}
-uint16_t natPort = alloc_nat_port();
+// 分配 NAT 端口，记录映射关系
+uint16_t natPort = alloc_nat_port();  // 假设分配 50000
 nat_table[natPort] = (Session){ .src = ip->saddr, .sport = tcp->source,
                                 .dst = ip->daddr, .dport = tcp->dest };
 
+// 改写前: src=10.0.0.5:12345    → dst=93.184.216.34:443
+// 改写后: src=198.18.0.2:50000  → dst=198.18.0.1:10000
 ip->saddr    = inet_addr("198.18.0.2");   // utun 的 next 地址
-tcp->source  = htons(natPort);
+tcp->source  = htons(natPort);             // NAT 端口
 ip->daddr    = inet_addr("198.18.0.1");   // utun 自身地址
-tcp->dest    = htons(tcpPort);             // 上面 listen 的端口
+tcp->dest    = htons(tcpPort);             // listenFd 的端口
 
 // 重算 checksum
 tcp->check = 0;
@@ -247,7 +250,7 @@ ip->check  = 0;
 ip->check  = ip_checksum(ip);
 ```
 
-4. **回写 utun**：内核看到目标是本机 198.18.0.1:tcpPort，走正常 TCP 栈
+#### 步骤 4：改写后的包写回 utun
 
 ```c
 struct iovec iov[2] = {
@@ -257,15 +260,30 @@ struct iovec iov[2] = {
 writev(tunFd, iov, 2);
 ```
 
-5. **accept 拿到连接**：通过 `getpeername` 获取 natPort，查 NAT 表恢复原始目标
+写回 utun 后，**内核再次收到这个包**。内核看到目标是 `198.18.0.1:10000`——这是本机地址，于是正常走内核 TCP 栈处理。内核完成 TCP 三次握手（SYN、SYN-ACK、ACK 都会经过同样的 utun 读出→改写→写回的流程）。
+
+#### 步骤 5：accept 得到 TCP 连接，查 NAT 表恢复原始目标
 
 ```c
 int connFd = accept(listenFd, (struct sockaddr*)&peer, &len);
-uint16_t natPort = ntohs(peer.sin_port);
+uint16_t natPort = ntohs(peer.sin_port);  // 50000
 Session *sess = &nat_table[natPort];
-// sess->dst + sess->dport = 原始目标 93.184.216.34:443
-// 交给代理隧道处理
+// sess->dst = 93.184.216.34, sess->dport = 443 → 原始目标已恢复
+// connFd 现在是一个可以 read()/write() 的 TCP socket，交给代理隧道处理
 ```
+
+#### 步骤 6：代理转发
+
+mihomo 用 `outFd` 连接远程代理服务器，在 `connFd` 和 `outFd` 之间双向拷贝数据。
+
+#### 关键代价：每个包穿越 utun 两次
+
+```
+第1次: 应用 → 内核路由 → utun → 用户态读出(recvmsg_x) → NAT 改写
+第2次: NAT 改写后 → 写回 utun(writev) → 内核 TCP 栈处理 → accept()
+```
+
+gVisor 栈只穿越一次，因为它在用户态完成 TCP 重组，不需要把包写回内核。
 
 UDP 直接在用户态解析，不经过内核 TCP 栈。
 
