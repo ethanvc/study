@@ -271,11 +271,33 @@ UDP 直接在用户态解析，不经过内核 TCP 栈。
 
 ### 4.2 gVisor 栈 — 完全用户态 TCP/IP
 
-使用 Google gVisor 的用户态 TCP/IP 栈。通过 `fdbased` endpoint 直接从 utun fd 用 `recvmsg_x` / `writev` 收发原始 IP 帧，在用户空间完成 TCP 三次握手、拥塞控制等全部逻辑，不依赖内核 TCP 栈。
+使用 Google gVisor 的用户态 TCP/IP 栈。通过 `fdbased` endpoint 直接从 `tunFd` 用 `recvmsg_x` / `writev` 收发原始 IP 帧，在用户空间完成 TCP 三次握手、拥塞控制等全部逻辑，不依赖内核 TCP 栈。
+
+数据路径对比 System 栈少一次 utun 往返：
+
+```
+System栈: 应用 → utun → 用户态NAT改写 → 回写utun → 内核TCP → accept() → 代理
+gVisor栈: 应用 → utun → gVisor用户态TCP  → 直接得到连接 → 代理
+```
 
 ### 4.3 Mixed 栈
 
-TCP 走 System（利用内核 TCP 栈性能好），UDP 走 gVisor（无需 NAT）。
+TCP 走 System，UDP 走 gVisor。兼顾 TCP 性能和 UDP 处理简洁性。
+
+### 4.4 三种栈对比
+
+| | System | gVisor | Mixed |
+|---|--------|--------|-------|
+| **TCP 实现** | 内核 TCP 栈 | 用户态 gVisor TCP | 内核 TCP 栈 |
+| **UDP 实现** | 用户态直接解析 | 用户态 gVisor UDP | 用户态 gVisor UDP |
+| **TCP 数据路径** | utun → 用户态 → utun → 内核 → accept（**两次穿越 utun**） | utun → gVisor（**一次穿越**） | 同 System |
+| **是否需要 NAT** | TCP 需要（改写 IP/TCP 头 + 维护映射表 + 重算 checksum） | 不需要 | TCP 需要 |
+| **TCP 性能** | 好。内核 TCP 经过多年优化，拥塞控制、快速重传等成熟 | 略差。用户态实现开销更大，拥塞算法不如内核完善 | 同 System |
+| **UDP 性能** | 好。无 NAT，直接解析 | 好 | 同 gVisor |
+| **兼容性** | 高。不需要额外 build tag | 需要 `-tags with_gvisor` 编译，二进制体积增大约 10MB | 同 gVisor |
+| **内存占用** | 低 | 较高。gVisor 栈需要维护自己的连接状态、收发缓冲区 | 中等 |
+| **复杂度** | NAT 映射表管理复杂，需处理端口耗尽、超时回收 | 架构简洁，utun 读出即交给 gVisor 处理 | 两套逻辑并存 |
+| **适用场景** | 追求 TCP 吞吐量（大文件下载、视频流） | 追求低延迟、大量短连接 | 默认推荐，综合最优 |
 
 ---
 
@@ -413,7 +435,13 @@ syscall(SYS_PROC_INFO,
 ```
 ┌──── 应用发起连接 (如 curl https://example.com) ────┐
 │                                                     │
-│  内核路由表: 0.0.0.0/1 → utun gateway              │
+│  内核路由表:                                        │
+│    0.0.0.0/1   → utun gateway                       │
+│    128.0.0.0/1 → utun gateway                       │
+│  两条 /1 覆盖全部 IPv4 地址空间，                     │
+│  但不替换原有 default route (0.0.0.0/0)，             │
+│  因最长前缀匹配优先命中 /1；                          │
+│  TUN 关闭时删除这两条即可恢复原路由。                  │
 │  (RTM_ADD via AF_ROUTE socket)                      │
 │                                                     │
 ▼                                                     │
