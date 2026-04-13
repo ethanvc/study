@@ -34,6 +34,8 @@ connect(tunFd, (struct sockaddr*)&sc, sizeof(sc));
 
 ### 1.4 设置 MTU
 
+utun 设备创建后默认 MTU 通常为 1500。mihomo 将其设为 9000，因为 utun 是纯虚拟设备，不受物理链路限制，更大的 MTU 意味着每个 IP 包能承载更多数据，减少用户态/内核态切换次数和包头开销，提升吞吐量。
+
 `SIOCSIFMTU` 等网络管理 ioctl 要求 fd 类型为 `AF_INET`，`tunFd`（`AF_SYSTEM`）不满足，所以临时创建一个 `AF_INET` socket 做管理句柄（下面 1.5、1.6 同理）。`mgmtFd` 不收发数据，用完即 `close()`。
 
 ```c
@@ -47,6 +49,13 @@ close(mgmtFd);
 
 ### 1.5 配置 IPv4 地址（SIOCAIFADDR）
 
+新创建的 utun 接口没有 IP 地址，必须分配一个才能：
+1. **作为路由网关** — 2.1 步添加路由时，gateway 指向此地址（如 198.18.0.1），内核才知道把匹配的流量送进 utun
+2. **System 栈需要监听** — 4.1 步在此地址上 `listen()`，接收 NAT 改写后的 TCP 连接
+3. **DNS 劫持** — utun 地址的 next IP（198.18.0.2:53）被自动加入 DNS 劫持列表
+
+地址选用 `198.18.0.0/15`（RFC 2544 基准测试保留段），不会与真实网络冲突。
+
 ```c
 struct ifaliasreq {
     char          ifra_name[IFNAMSIZ];
@@ -58,6 +67,8 @@ ioctl(mgmtFd, SIOCAIFADDR, &ifReq);  // mgmtFd = socket(AF_INET, SOCK_DGRAM, 0)
 ```
 
 ### 1.6 配置 IPv6 地址（SIOCAIFADDR_IN6）
+
+同理，为 utun 分配 IPv6 地址以支持 IPv6 流量的路由捕获和处理。
 
 ```c
 struct in6_aliasreq {
@@ -71,7 +82,8 @@ struct in6_aliasreq {
 ioctl(mgmtFd6, SIOCAIFADDR_IN6/*0x8080266A*/, &ifReq6);  // mgmtFd6 = socket(AF_INET6, SOCK_DGRAM, 0)
 ```
 
-`IN6_IFF_NODAD` 跳过 Duplicate Address Detection，`IN6_IFF_SECURED` 标记为安全地址。
+- `IN6_IFF_NODAD` — 跳过 Duplicate Address Detection，避免启动延迟（虚拟设备不存在地址冲突）
+- `IN6_IFF_SECURED` — 标记为安全地址，防止被其他接口的隐私扩展覆盖
 
 ### 1.7 设置非阻塞 + 批量收包参数
 
