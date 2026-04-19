@@ -1,10 +1,206 @@
-# macOS 透明代理实现原理 — mihomo 源码分析
+# 简介
 
-## 1. TUN 设备创建
+分析 mihomo 在 macOS 下透明代理的实现原理。
+
+文档分两部分：
+- **第一部分「原理概述」**：图文讲清楚设计思路，不涉及具体系统调用。
+- **第二部分「实现细节」**：逐个系统调用展开，附代码。
+
+---
+
+# 第一部分 · 原理概述
+
+## 1. 问题定义
+
+**目标**：在不修改应用、不配置代理环境变量的前提下，把本机所有出站流量（任意协议、任意端口）透明地劫持到用户态程序 mihomo，由它按规则转发到远程代理。
+
+**难点**：
+1. 如何把流量从内核"骗"到用户态？ → TUN + 路由劫持
+2. 用户态拿到的是原始 IP 包，如何变成可用的 TCP 连接？ → IP 栈处理（三种方案）
+3. 代理自己的出站流量怎么不被再次劫持？ → 出站接口绑定
+
+## 2. 整体架构
+
+```
+┌─────────────────────┐
+│   用户应用 (curl)    │  connect 93.184.216.34:443
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────────────────────────┐
+│  内核路由表 (mihomo 启动时注入)          │
+│    0.0.0.0/1   → 198.18.0.1 (utun0)     │
+│    128.0.0.0/1 → 198.18.0.1 (utun0)     │
+│    ── 两条 /1 覆盖全部 IPv4 ──          │
+└──────────┬──────────────────────────────┘
+           │ 最长前缀匹配，流量进入 utun
+           ▼
+┌─────────────────────┐   recvmsg_x 读 IP 包
+│   utun 虚拟网卡      │─────────────────────┐
+│   (AF_SYSTEM fd)    │                     │
+└─────────────────────┘                     ▼
+                                 ┌──────────────────────┐
+                                 │  mihomo 用户态        │
+                                 │  ├─ IP 栈解析        │
+                                 │  ├─ DNS 劫持         │
+                                 │  ├─ 进程识别 (PID)   │
+                                 │  └─ 规则匹配 → 代理  │
+                                 └──────────┬───────────┘
+                                            │ outFd
+                                            │ setsockopt(IP_BOUND_IF=en0)
+                                            ▼
+                                 ┌──────────────────────┐
+                                 │  物理网卡 en0        │
+                                 └──────────┬───────────┘
+                                            ▼
+                                     远程代理服务器
+```
+
+## 3. 核心机制
+
+### 3.1 流量捕获 = TUN 设备 + 路由劫持
+
+**TUN 设备**：macOS 内核提供的 `utunN` 虚拟网卡。对用户态来说它是一个文件描述符，`read` 读到的是完整 IP 包，`write` 写入的内容内核当作"从这个网卡收到的包"处理。
+
+**路由劫持**：添加 `0.0.0.0/1` 和 `128.0.0.0/1` 两条路由，把网关指向 utun 自身地址（如 `198.18.0.1`）。
+
+为什么不用 `0.0.0.0/0`？
+- `0.0.0.0/0` 会覆盖原有默认路由，关闭代理时难以恢复。
+- 两条 `/1` 同样覆盖全部 IPv4 地址空间，但保留了原默认路由；基于**最长前缀匹配**，`/1` 优先生效；关闭时只需删除这两条。
+
+地址用 `198.18.0.0/15`（RFC 2544 保留段），不会与真实网络冲突。
+
+### 3.2 协议还原 = 三种 IP 栈
+
+从 utun 读出来的是 L3 原始 IP 包，但代理逻辑需要 L4 连接（TCP stream / UDP datagram）。三种方案：
+
+```
+┌─────────┬──────────────────────┬──────────────────────┬──────────────────────┐
+│         │  System 栈            │  gVisor 栈            │  Mixed 栈             │
+├─────────┼──────────────────────┼──────────────────────┼──────────────────────┤
+│ TCP     │ 内核 TCP (NAT 借用)   │ 用户态 gVisor TCP     │ 内核 TCP (NAT)       │
+│ UDP     │ 用户态直接解析        │ 用户态 gVisor UDP     │ 用户态 gVisor UDP    │
+│ 穿 utun │ TCP 两次, UDP 一次    │ 一次                  │ TCP 两次, UDP 一次   │
+│ 复杂度  │ NAT 表管理            │ 架构简洁              │ 两套并存             │
+│ 性能    │ TCP 强, 依赖内核优化   │ UDP/短连接好          │ 综合最优 (默认推荐)  │
+└─────────┴──────────────────────┴──────────────────────┴──────────────────────┘
+```
+
+数据路径对比：
+
+```
+System 栈 (TCP):
+  应用 ──▶ utun ──▶ mihomo(NAT改写) ──▶ utun ──▶ 内核TCP ──▶ accept() ──▶ 代理
+           ↑ 第1次                     ↑ 第2次
+
+gVisor 栈:
+  应用 ──▶ utun ──▶ mihomo(用户态TCP/IP) ──▶ 代理
+           ↑ 仅1次
+```
+
+### 3.3 System 栈的灵魂 —— NAT 借用内核 TCP
+
+System 栈核心矛盾："从 utun 读出的是 IP 包字节，如何得到一个可 `read/write` 的 TCP socket？"
+
+答案是：**改写 IP 包的目标地址，让内核 TCP 栈以为这个包是发给本机的，完成三次握手后我们 `accept()` 出来用**。
+
+```
+curl 发出 SYN:  src=10.0.0.5:12345        dst=93.184.216.34:443
+                                                    │
+                                                    │ mihomo NAT 改写
+                                                    ▼
+改写后:         src=198.18.0.2:50000      dst=198.18.0.1:10000
+                        │                          │
+                        │ 写回 utun，内核收到      │
+                        ▼                          ▼
+                 分配的 NAT 端口             mihomo 的 listenFd
+                        │
+                        │ 内核 TCP 三次握手 → listenFd.accept()
+                        ▼
+                connFd + peer.sin_port=50000
+                        │
+                        │ 查 NAT 表 nat_table[50000]
+                        ▼
+                原始目标 93.184.216.34:443 恢复
+```
+
+NAT 表维护四元组映射：`NAT端口 → {原src IP/port, 原dst IP/port}`。
+
+代价：**每个包穿越 utun 两次**（读出改写一次，写回被内核处理一次）。gVisor 栈没有这个代价，因为它不借用内核 TCP。
+
+### 3.4 防回环 = 出站接口绑定
+
+mihomo 连接远程代理时创建的 `outFd`，若走默认路由选路，会再次命中 `0.0.0.0/1` 被 utun 抓住 → 死循环。
+
+```
+不绑接口:                              绑定 en0:
+  outFd.connect(代理服务器)              outFd.connect(代理服务器)
+       │                                      │
+       ▼                                      │ IP_BOUND_IF=en0
+  查路由表                                    │ 绕过路由表
+       │                                      │
+       ▼                                      ▼
+  命中 0.0.0.0/1                         en0 物理网卡
+       │                                      │
+       ▼                                      ▼
+    utun  ✗ 死循环                       远程服务器 ✓
+```
+
+macOS 的机制是 `setsockopt(IP_BOUND_IF)`（IPv6 是 `IPV6_BOUND_IF`），按**接口索引**绑定，优先级高于路由表。Linux 对应 `SO_BINDTODEVICE`。
+
+出口接口索引（如 en0 的 index）通过两种方式获取：
+- **普通模式**：读 `AF_ROUTE` + `sysctl(NET_RT_DUMP)`，找默认网关所在接口。
+- **Network Extension 模式**：无权限读路由表，改用 `connect()` 到任意地址 + `getsockname()` 拿内核选的本地 IP，反查接口。
+
+### 3.5 附加能力
+
+| 能力            | 原理                                                                 |
+| --------------- | -------------------------------------------------------------------- |
+| **DNS 劫持**    | utun 地址的 next IP（如 `198.18.0.2:53`）自动加入劫持列表，匹配后交给内置 DNS 引擎 |
+| **进程识别**    | `sysctl(net.inet.tcp.pcblist_n)` dump 内核 PCB 表，按源 IP/port 查 PID，再 `proc_info` 取进程路径 |
+| **网络变化监控** | `AF_ROUTE` socket 常驻 `read`，收 `RTM_*` 消息触发回调（刷新接口缓存、重置 DNS） |
+| **Redir 模式**   | 用 PF 防火墙 `rdr` 规则重定向 TCP，mihomo 通过 `DIOCNATLOOK` ioctl 向 `/dev/pf` 查询原始目标 |
+
+## 4. 完整数据流
+
+```
+应用发起连接 (curl https://example.com)
+        │
+        ▼
+内核路由表: 0.0.0.0/1 | 128.0.0.0/1 → utun
+        │
+        ▼
+utun 设备 (AF_SYSTEM + connect 创建)
+        │  读: recvmsg_x 批量收包
+        │  格式: [4B AF头][IP头][TCP/UDP头][payload]
+        ▼
+IP 栈处理
+ ├─ System:  解析 → NAT 改写 → 写回 utun → 内核 TCP → accept()
+ ├─ gVisor:  fdbased endpoint → 用户态 TCP/IP → 直接得到连接
+ └─ Mixed:   TCP 走 System, UDP 走 gVisor
+        │
+        ▼
+代理隧道 (HandleTCPConn / HandleUDPPacket)
+ ├─ DNS 劫持 (目标端口 53)
+ ├─ 进程识别 (pcblist_n + proc_info)
+ └─ 规则匹配 → 选择出站代理
+        │
+        ▼
+outFd  ──  setsockopt(IP_BOUND_IF=en0) 防回环
+        │
+        ▼
+物理网卡 en0 → 远程代理服务器
+```
+
+---
+
+# 第二部分 · 实现细节
+
+## 5. TUN 设备创建
 
 macOS 内核提供 utun (User Tunnel) 驱动。mihomo 通过以下系统调用序列创建 utun 设备。
 
-### 1.1 创建控制 socket
+### 5.1 创建控制 socket
 
 ```c
 int tunFd = socket(AF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL/*2*/);
@@ -12,7 +208,7 @@ int tunFd = socket(AF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL/*2*/);
 
 `AF_SYSTEM` 是 macOS 专有的地址族，用于和内核扩展/控制接口通信。`SYSPROTO_CONTROL` 表示 Kernel Control Socket 协议。
 
-### 1.2 获取 utun 控制 ID
+### 5.2 获取 utun 控制 ID
 
 ```c
 struct ctl_info ctlInfo;
@@ -20,7 +216,7 @@ strcpy(ctlInfo.ctl_name, "com.apple.net.utun_control");
 ioctl(tunFd, CTLIOCGINFO, &ctlInfo);  // 获取 ctlInfo.ctl_id
 ```
 
-### 1.3 connect 创建 utun 设备
+### 5.3 connect 创建 utun 设备
 
 ```c
 struct sockaddr_ctl sc = {
@@ -32,11 +228,11 @@ connect(tunFd, (struct sockaddr*)&sc, sizeof(sc));
 
 `connect()` 不返回新 fd，而是将 `tunFd` 绑定到内核 utun 控制单元，内核侧随之创建 `utunN` 接口。之后对 `tunFd` 的 `read()/write()` 直接收发 IP 包。**后文所有 `tunFd` 均指此 fd。**
 
-### 1.4 设置 MTU
+### 5.4 设置 MTU
 
 utun 设备创建后默认 MTU 通常为 1500。mihomo 将其设为 9000，因为 utun 是纯虚拟设备，不受物理链路限制，更大的 MTU 意味着每个 IP 包能承载更多数据，减少用户态/内核态切换次数和包头开销，提升吞吐量。
 
-`SIOCSIFMTU` 等网络管理 ioctl 要求 fd 类型为 `AF_INET`，`tunFd`（`AF_SYSTEM`）不满足，所以临时创建一个 `AF_INET` socket 做管理句柄（下面 1.5、1.6 同理）。`mgmtFd` 不收发数据，用完即 `close()`。
+`SIOCSIFMTU` 等网络管理 ioctl 要求 fd 类型为 `AF_INET`，`tunFd`（`AF_SYSTEM`）不满足，所以临时创建一个 `AF_INET` socket 做管理句柄（下面 5.5、5.6 同理）。`mgmtFd` 不收发数据，用完即 `close()`。
 
 ```c
 int mgmtFd = socket(AF_INET, SOCK_DGRAM, 0);  // 临时管理句柄，非数据通道
@@ -47,11 +243,11 @@ ioctl(mgmtFd, SIOCSIFMTU, &ifr);
 close(mgmtFd);
 ```
 
-### 1.5 配置 IPv4 地址（SIOCAIFADDR）
+### 5.5 配置 IPv4 地址（SIOCAIFADDR）
 
 新创建的 utun 接口没有 IP 地址，必须分配一个才能：
-1. **作为路由网关** — 2.1 步添加路由时，gateway 指向此地址（如 198.18.0.1），内核才知道把匹配的流量送进 utun
-2. **System 栈需要监听** — 4.1 步在此地址上 `listen()`，接收 NAT 改写后的 TCP 连接
+1. **作为路由网关** — 6.1 步添加路由时，gateway 指向此地址（如 198.18.0.1），内核才知道把匹配的流量送进 utun
+2. **System 栈需要监听** — 8.1 步在此地址上 `listen()`，接收 NAT 改写后的 TCP 连接
 3. **DNS 劫持** — utun 地址的 next IP（198.18.0.2:53）被自动加入 DNS 劫持列表
 
 地址选用 `198.18.0.0/15`（RFC 2544 基准测试保留段），不会与真实网络冲突。
@@ -66,7 +262,7 @@ struct ifaliasreq {
 ioctl(mgmtFd, SIOCAIFADDR, &ifReq);  // mgmtFd = socket(AF_INET, SOCK_DGRAM, 0)
 ```
 
-### 1.6 配置 IPv6 地址（SIOCAIFADDR_IN6）
+### 5.6 配置 IPv6 地址（SIOCAIFADDR_IN6）
 
 同理，为 utun 分配 IPv6 地址以支持 IPv6 流量的路由捕获和处理。
 
@@ -85,7 +281,7 @@ ioctl(mgmtFd6, SIOCAIFADDR_IN6/*0x8080266A*/, &ifReq6);  // mgmtFd6 = socket(AF_
 - `IN6_IFF_NODAD` — 跳过 Duplicate Address Detection，避免启动延迟（虚拟设备不存在地址冲突）
 - `IN6_IFF_SECURED` — 标记为安全地址，防止被其他接口的隐私扩展覆盖
 
-### 1.7 设置非阻塞 + 批量收包参数
+### 5.7 设置非阻塞 + 批量收包参数
 
 ```c
 fcntl(tunFd, F_SETFL, O_NONBLOCK);
@@ -97,9 +293,9 @@ setsockopt(tunFd, SYSPROTO_CONTROL/*2*/, UTUN_OPT_MAX_PENDING_PACKETS/*16*/, &ba
 
 ---
 
-## 2. 路由表操作
+## 6. 路由表操作
 
-### 2.1 添加路由（AF_ROUTE socket）
+### 6.1 添加路由（AF_ROUTE socket）
 
 mihomo 通过 `auto-route` 将流量导向 utun，实现方式是操作系统路由表：
 
@@ -123,7 +319,7 @@ close(routeFd);
 
 典型做法是添加 `0.0.0.0/1` + `128.0.0.0/1` 两条路由覆盖全部 IPv4 流量（避免覆盖默认路由 `0.0.0.0/0`）。
 
-### 2.2 刷新 DNS 缓存
+### 6.2 刷新 DNS 缓存
 
 路由变更后执行：
 ```c
@@ -132,11 +328,11 @@ execl("/usr/bin/dscacheutil", "dscacheutil", "-flushcache", NULL);
 
 ---
 
-## 3. 收发包的系统调用
+## 7. 收发包的系统调用
 
 utun 设备的数据格式：**4 字节 AF 头 + IP 包**。前 4 字节标识协议族（`AF_INET=2` 或 `AF_INET6=30`）。
 
-### 3.1 批量收包 — recvmsg_x（Darwin 私有系统调用）
+### 7.1 批量收包 — recvmsg_x（Darwin 私有系统调用）
 
 ```c
 struct msghdr_x {
@@ -148,7 +344,7 @@ int n = syscall(SYS_RECVMSG_X, tunFd, msgHdrs, count, MSG_DONTWAIT, 0, 0);
 
 `recvmsg_x` 是 macOS XNU 内核的私有批量收包接口，一次系统调用可读取多个消息。每个消息通过 `iovec` 散列读取：`iovec[0]` = 4 字节 AF 头，`iovec[1]` = IP 包内容。
 
-### 3.2 批量发包 — sendmsg_x（可选）
+### 7.2 批量发包 — sendmsg_x（可选）
 
 ```c
 int n = syscall(SYS_SENDMSG_X, tunFd, msgHdrs, count, MSG_DONTWAIT, 0, 0);
@@ -156,7 +352,7 @@ int n = syscall(SYS_SENDMSG_X, tunFd, msgHdrs, count, MSG_DONTWAIT, 0, 0);
 
 默认关闭（`SendMsgX=false`），因为多线程下载时可能触发内核冻结。
 
-### 3.3 单包写入 — writev
+### 7.3 单包写入 — writev
 
 默认写入路径：
 ```c
@@ -167,7 +363,7 @@ struct iovec iov[2] = {
 writev(tunFd, iov, 2);
 ```
 
-### 3.4 单包读取 — readv（非批量模式）
+### 7.4 单包读取 — readv（非批量模式）
 
 ```c
 struct iovec iov[2] = {
@@ -177,7 +373,7 @@ struct iovec iov[2] = {
 readv(tunFd, iov, 2);
 ```
 
-### 3.5 I/O 多路复用 — kqueue
+### 7.5 I/O 多路复用 — kqueue
 
 等待 utun fd 可读时使用 `kqueue`（而非 `poll`/`epoll`）：
 
@@ -195,17 +391,11 @@ kevent(kq, NULL, 0, revents, 2, NULL);  // 阻塞等待
 
 ---
 
-## 4. IP 栈处理
+## 8. IP 栈处理（实现细节）
 
-从 utun 读出的是原始 IP 包，需要解析协议后分发给代理隧道。
+### 8.1 System 栈 — 用户态 NAT 转发到内核 TCP
 
-### 4.1 System 栈（默认）— 用户态 NAT 转发到内核 TCP
-
-**核心矛盾**：从 utun 读出的是原始 IP 包（L3），但代理需要的是 TCP 连接（L4）。一堆 IP 字节如何变成一个可以 `read()`/`write()` 的 TCP socket？
-
-System 栈的做法是：**借用内核的 TCP 栈完成 TCP 重组，但通过 NAT 把连接"骗"到自己的监听端口上**。
-
-以 `curl https://example.com`（目标 `93.184.216.34:443`）为例，完整流程如下：
+以 `curl https://example.com`（目标 `93.184.216.34:443`）为例，完整代码流程如下：
 
 #### 步骤 1：启动时在 utun 地址上预先监听
 
@@ -276,50 +466,32 @@ Session *sess = &nat_table[natPort];
 
 mihomo 用 `outFd` 连接远程代理服务器，在 `connFd` 和 `outFd` 之间双向拷贝数据。
 
-#### 关键代价：每个包穿越 utun 两次
-
-```
-第1次: 应用 → 内核路由 → utun → 用户态读出(recvmsg_x) → NAT 改写
-第2次: NAT 改写后 → 写回 utun(writev) → 内核 TCP 栈处理 → accept()
-```
-
-gVisor 栈只穿越一次，因为它在用户态完成 TCP 重组，不需要把包写回内核。
-
-UDP 直接在用户态解析，不经过内核 TCP 栈。
-
-### 4.2 gVisor 栈 — 完全用户态 TCP/IP
+### 8.2 gVisor 栈 — 完全用户态 TCP/IP
 
 使用 Google gVisor 的用户态 TCP/IP 栈。通过 `fdbased` endpoint 直接从 `tunFd` 用 `recvmsg_x` / `writev` 收发原始 IP 帧，在用户空间完成 TCP 三次握手、拥塞控制等全部逻辑，不依赖内核 TCP 栈。
 
-数据路径对比 System 栈少一次 utun 往返：
-
-```
-System栈: 应用 → utun → 用户态NAT改写 → 回写utun → 内核TCP → accept() → 代理
-gVisor栈: 应用 → utun → gVisor用户态TCP  → 直接得到连接 → 代理
-```
-
-### 4.3 Mixed 栈
+### 8.3 Mixed 栈
 
 TCP 走 System，UDP 走 gVisor。兼顾 TCP 性能和 UDP 处理简洁性。
 
-### 4.4 三种栈对比
+### 8.4 三种栈对比
 
-| | System | gVisor | Mixed |
-|---|--------|--------|-------|
-| **TCP 实现** | 内核 TCP 栈 | 用户态 gVisor TCP | 内核 TCP 栈 |
-| **UDP 实现** | 用户态直接解析 | 用户态 gVisor UDP | 用户态 gVisor UDP |
-| **TCP 数据路径** | utun → 用户态 → utun → 内核 → accept（**两次穿越 utun**） | utun → gVisor（**一次穿越**） | 同 System |
-| **是否需要 NAT** | TCP 需要（改写 IP/TCP 头 + 维护映射表 + 重算 checksum） | 不需要 | TCP 需要 |
-| **TCP 性能** | 好。内核 TCP 经过多年优化，拥塞控制、快速重传等成熟 | 略差。用户态实现开销更大，拥塞算法不如内核完善 | 同 System |
-| **UDP 性能** | 好。无 NAT，直接解析 | 好 | 同 gVisor |
-| **兼容性** | 高。不需要额外 build tag | 需要 `-tags with_gvisor` 编译，二进制体积增大约 10MB | 同 gVisor |
-| **内存占用** | 低 | 较高。gVisor 栈需要维护自己的连接状态、收发缓冲区 | 中等 |
-| **复杂度** | NAT 映射表管理复杂，需处理端口耗尽、超时回收 | 架构简洁，utun 读出即交给 gVisor 处理 | 两套逻辑并存 |
-| **适用场景** | 追求 TCP 吞吐量（大文件下载、视频流） | 追求低延迟、大量短连接 | 默认推荐，综合最优 |
+|                  | System                                                    | gVisor                                               | Mixed              |
+| ---------------- | --------------------------------------------------------- | ---------------------------------------------------- | ------------------ |
+| **TCP 实现**     | 内核 TCP 栈                                               | 用户态 gVisor TCP                                    | 内核 TCP 栈        |
+| **UDP 实现**     | 用户态直接解析                                            | 用户态 gVisor UDP                                    | 用户态 gVisor UDP  |
+| **TCP 数据路径** | utun → 用户态 → utun → 内核 → accept（**两次穿越 utun**） | utun → gVisor（**一次穿越**）                        | 同 System          |
+| **是否需要 NAT** | TCP 需要（改写 IP/TCP 头 + 维护映射表 + 重算 checksum）   | 不需要                                               | TCP 需要           |
+| **TCP 性能**     | 好。内核 TCP 经过多年优化，拥塞控制、快速重传等成熟       | 略差。用户态实现开销更大，拥塞算法不如内核完善       | 同 System          |
+| **UDP 性能**     | 好。无 NAT，直接解析                                      | 好                                                   | 同 gVisor          |
+| **兼容性**       | 高。不需要额外 build tag                                  | 需要 `-tags with_gvisor` 编译，二进制体积增大约 10MB | 同 gVisor          |
+| **内存占用**     | 低                                                        | 较高。gVisor 栈需要维护自己的连接状态、收发缓冲区    | 中等               |
+| **复杂度**       | NAT 映射表管理复杂，需处理端口耗尽、超时回收              | 架构简洁，utun 读出即交给 gVisor 处理                | 两套逻辑并存       |
+| **适用场景**     | 追求 TCP 吞吐量（大文件下载、视频流）                     | 追求低延迟、大量短连接                               | 默认推荐，综合最优 |
 
 ---
 
-## 5. 出站接口绑定 — 防止回环
+## 9. 出站接口绑定 — 防止回环
 
 代理出站流量必须走物理网卡（如 en0），不能再进 utun。macOS 使用 `IP_BOUND_IF`：
 
@@ -332,11 +504,11 @@ setsockopt(outFd, IPPROTO_IPV6, IPV6_BOUND_IF, &ifIndex, sizeof(ifIndex));
 
 `outFd` 是代理出站连接的 socket（连接远程代理服务器的那个）。
 
-这是 macOS 特有的 socket 选项（Linux 用 `SO_BINDTODEVICE`），将 socket 绑定到指定接口索引。
+这是 macOS 特有的 socket 选项（Linux 用 `SO_BINDTODEVICE`），将 socket 绑定到指定接口索引。必须在 `connect()` 之前调用。
 
 ---
 
-## 6. 网络变化监控 — AF_ROUTE socket
+## 10. 网络变化监控 — AF_ROUTE socket
 
 ```c
 int monitorFd = socket(AF_ROUTE, SOCK_RAW, 0);  // 路由监控句柄（常驻）
@@ -345,7 +517,7 @@ fcntl(monitorFd, F_SETFL, O_NONBLOCK);
 
 持续 `read(monitorFd)` 监听路由表变化。收到 `RTM_*` 消息时解析，若是路由变更事件则触发回调（刷新接口缓存、重置 DNS 连接）。
 
-### 6.1 检测默认网关接口
+### 10.1 检测默认网关接口
 
 ```c
 int mib[] = { CTL_NET, PF_ROUTE, 0, AF_UNSPEC, NET_RT_DUMP, 0 };
@@ -357,7 +529,7 @@ sysctl(mib, 6, buf, &len, NULL, 0);
 // 该条目的 rtm_index 即为默认出口接口
 ```
 
-### 6.2 Network Extension 模式下的接口检测
+### 10.2 Network Extension 模式下的接口检测
 
 作为 VPN 扩展运行时无法直接读路由表，改用 `connect()` 探测：
 
@@ -378,18 +550,18 @@ getsockname(probeFd, (struct sockaddr*)&local, &len);  // 拿到内核选择的�
 
 ---
 
-## 7. Redir 模式 — PF NAT 查表
+## 11. Redir 模式 — PF NAT 查表
 
 用 PF 防火墙做 TCP 重定向时，mihomo 通过 `DIOCNATLOOK` ioctl 恢复原始目标地址。
 
-### 7.1 PF rdr 规则（用户手动配置）
+### 11.1 PF rdr 规则（用户手动配置）
 
 ```
 # /etc/pf.conf
 rdr pass on lo0 proto tcp from any to any -> 127.0.0.1 port 7892
 ```
 
-### 7.2 DIOCNATLOOK 查询
+### 11.2 DIOCNATLOOK 查询
 
 ```c
 int pfFd = open("/dev/pf", O_RDONLY);  // PF 防火墙句柄
@@ -413,7 +585,7 @@ close(pfFd);
 
 ---
 
-## 8. 进程识别 — sysctl pcblist
+## 12. 进程识别 — sysctl pcblist
 
 ```c
 size_t len;
@@ -448,50 +620,8 @@ syscall(SYS_PROC_INFO,
 
 ---
 
-## 9. 完整调用链总结
-
-```
-┌──── 应用发起连接 (如 curl https://example.com) ────┐
-│                                                     │
-│  内核路由表:                                        │
-│    0.0.0.0/1   → utun gateway                       │
-│    128.0.0.0/1 → utun gateway                       │
-│  两条 /1 覆盖全部 IPv4 地址空间，                     │
-│  但不替换原有 default route (0.0.0.0/0)，             │
-│  因最长前缀匹配优先命中 /1；                          │
-│  TUN 关闭时删除这两条即可恢复原路由。                  │
-│  (RTM_ADD via AF_ROUTE socket)                      │
-│                                                     │
-▼                                                     │
-utun 设备 (由 AF_SYSTEM + connect 创建)               │
-│                                                     │
-│  读取: recvmsg_x(tunFd, msgHdrs[], count)           │
-│  数据: [4B AF头][IP头][TCP/UDP头][payload]            │
-│                                                     │
-▼                                                     │
-IP 栈处理                                              │
-├─ System栈: 解析IP/TCP头 → NAT改写 → writev回utun     │
-│  → 内核TCP → accept() → 恢复原始目标                  │
-├─ gVisor栈: fdbased endpoint → 用户态TCP/IP           │
-│  → 直接得到 TCP conn / UDP packet                    │
-└─ Mixed栈: TCP走System, UDP走gVisor                   │
-                                                      │
-▼                                                      │
-代理隧道 (HandleTCPConn / HandleUDPPacket)              │
-├─ 进程识别: sysctl(pcblist_n) → SYS_PROC_INFO(PID)    │
-├─ DNS劫持: 匹配目标端口53 → 转发给内置DNS引擎           │
-└─ 规则匹配 → 选择出站代理                               │
-                                                      │
-▼                                                      │
-outFd (出站 socket)                                     │
-│  setsockopt(outFd, IPPROTO_IP, IP_BOUND_IF, en0_idx)│
-│  确保流量走物理网卡，不回流 utun                        │
-│                                                     │
-▼                                                     │
-物理网卡 (en0) → 远程代理服务器 ───────────────────────┘
-```
-
 ## 参考资料
+
 - [mihomo Meta 分支](https://github.com/MetaCubeX/mihomo/tree/Meta)
 - [sing-tun](https://github.com/metacubex/sing-tun) — 实际 TUN 设备和路由管理库
 - [XNU utun 实现](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/net/if_utun.c)
