@@ -26,7 +26,7 @@
 ```mermaid
 %%{init: {'theme': 'neutral'}}%%
 graph TD
-    A["用户应用 (curl)<br/>connect 93.184.216.34:443"] --> B
+    A[用户应用 (curl)<br/>connect 93.184.216.34:443] --> B
     B["内核路由表 (mihomo 启动时注入)<br/>0.0.0.0/1 → 198.18.0.1 (utun0)<br/>128.0.0.0/1 → 198.18.0.1 (utun0)"]
     B -->|"最长前缀匹配，流量进入 utun"| C
     C["utun 虚拟网卡 (AF_SYSTEM fd)"]
