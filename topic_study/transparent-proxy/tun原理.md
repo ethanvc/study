@@ -23,24 +23,17 @@
 
 ## 2. 整体架构
 
-```plantuml
-@startuml
-skinparam backgroundColor white
-skinparam defaultFontSize 13
-
-rectangle "用户应用 (curl)\nconnect 93.184.216.34:443" as APP
-rectangle "内核路由表 (mihomo 启动时注入)\n0.0.0.0/1 → 198.18.0.1 (utun0)\n128.0.0.0/1 → 198.18.0.1 (utun0)" as ROUTE
-rectangle "utun 虚拟网卡\n(AF_SYSTEM fd)" as TUN
-rectangle "用户态处理\n协议栈还原 → 还原原目的地 → 双向转发\nconnFd ⇄ outFd" as USERSPACE
-rectangle "物理网卡 en0" as EN0
-rectangle "远程代理服务器" as REMOTE
-
-APP -down-> ROUTE : 发包
-ROUTE -down-> TUN : 最长前缀匹配\n流量进入 utun
-TUN -down-> USERSPACE : recvmsg_x 读 IP 包
-USERSPACE -down-> EN0 : outFd\nsetsockopt(IP_BOUND_IF=en0)
-EN0 -down-> REMOTE
-@enduml
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph TD
+    A["用户应用 (curl)<br/>connect 93.184.216.34:443"] --> B
+    B["内核路由表 (mihomo 启动时注入)<br/>0.0.0.0/1 → 198.18.0.1 (utun0)<br/>128.0.0.0/1 → 198.18.0.1 (utun0)"]
+    B -->|"最长前缀匹配，流量进入 utun"| C
+    C["utun 虚拟网卡 (AF_SYSTEM fd)"]
+    C -->|"recvmsg_x 读 IP 包"| D
+    D["用户态处理<br/>协议栈还原 → 还原原目的地 → 双向转发<br/>connFd ⇄ outFd"]
+    D -->|"outFd · setsockopt IP_BOUND_IF=en0"| E
+    E["物理网卡 en0"] --> F["远程代理服务器"]
 ```
 
 ## 3. 核心机制
@@ -72,46 +65,27 @@ EN0 -down-> REMOTE
 
 数据路径对比：
 
-```plantuml
-@startuml
-skinparam backgroundColor white
-skinparam defaultFontSize 13
-
-title System 栈 (TCP) — 穿 utun 两次
-
-rectangle "应用" as S1
-rectangle "utun" as S2
-rectangle "mihomo\nNAT 改写" as S3
-rectangle "utun" as S4
-rectangle "内核 TCP" as S5
-rectangle "accept()" as S6
-rectangle "代理" as S7
-
-S1 -right-> S2 : 第1次
-S2 -right-> S3
-S3 -right-> S4 : 第2次
-S4 -right-> S5
-S5 -right-> S6
-S6 -right-> S7
-@enduml
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph LR
+    subgraph "System 栈 (TCP) — 穿 utun 两次"
+        S1["应用"] -->|"第1次"| S2["utun"]
+        S2 --> S3["mihomo NAT 改写"]
+        S3 -->|"第2次"| S4["utun"]
+        S4 --> S5["内核 TCP"]
+        S5 --> S6["accept()"]
+        S6 --> S7["代理"]
+    end
 ```
 
-```plantuml
-@startuml
-skinparam backgroundColor white
-skinparam defaultFontSize 13
-
-title gVisor 栈 — 穿 utun 仅1次
-
-rectangle "应用" as G1
-rectangle "utun" as G2
-rectangle "mihomo\n用户态 TCP/IP" as G3
-rectangle "代理" as G4
-
-G1 -right-> G2 : 仅1次
-G2 -right-> G3
-G3 -right-> G4
-@enduml
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph LR
+    subgraph "gVisor 栈 — 穿 utun 仅1次"
+        G1["应用"] -->|"仅1次"| G2["utun"]
+        G2 --> G3["mihomo 用户态 TCP/IP"]
+        G3 --> G4["代理"]
+    end
 ```
 
 ### 3.3 System 栈的灵魂 —— NAT 借用内核 TCP
@@ -120,22 +94,15 @@ System 栈核心矛盾："从 utun 读出的是 IP 包字节，如何得到一�
 
 答案是：**改写 IP 包的目标地址，让内核 TCP 栈以为这个包是发给本机的，完成三次握手后我们 `accept()` 出来用**。
 
-```plantuml
-@startuml
-skinparam backgroundColor white
-skinparam defaultFontSize 13
-
-rectangle "curl 发出 SYN\nsrc=10.0.0.5:12345\ndst=93.184.216.34:443" as A
-rectangle "NAT 改写后\nsrc=198.18.0.2:50000\ndst=198.18.0.1:10000" as B
-rectangle "内核 TCP 三次握手\n198.18.0.1:10000\n= mihomo listenFd" as C
-rectangle "accept() 得到 connFd\npeer port = 50000" as D
-rectangle "恢复原始目标\n93.184.216.34:443" as E
-
-A -down-> B : mihomo NAT 改写
-B -down-> C : 写回 utun，内核收到
-C -down-> D
-D -down-> E : 查 NAT 表\nnat_table[50000]
-@enduml
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph TD
+    A["curl 发出 SYN<br/>src=10.0.0.5:12345<br/>dst=93.184.216.34:443"]
+    A -->|"mihomo NAT 改写"| B
+    B["改写后<br/>src=198.18.0.2:50000<br/>dst=198.18.0.1:10000"]
+    B -->|"写回 utun，内核收到"| C["内核 TCP 三次握手<br/>198.18.0.1:10000 = mihomo listenFd"]
+    C --> D["accept() 得到 connFd<br/>peer port = 50000"]
+    D -->|"查 NAT 表 nat_table[50000]"| E["恢复原始目标<br/>93.184.216.34:443"]
 ```
 
 NAT 表维护四元组映射：`NAT端口 → {原src IP/port, 原dst IP/port}`。
@@ -144,55 +111,31 @@ NAT 表维护四元组映射：`NAT端口 → {原src IP/port, 原dst IP/port}`�
 
 **为什么写回 utun 不会被再次读到？** NAT 改写后的包目的地址是 `198.18.0.1`（utun 自身地址，即本机地址）。往 utun fd 写入数据时，内核将其视为"从 utun 网卡收到的入站包"，走 rx（接收）路径。内核发现目的 IP 是本机地址，命中 local 路由条目，直接走 **local input** 路径递交 TCP 栈，不经过路由选路，因此不会再次被 utun 捕获。只有目的地不是本机的包才会走 forward 路径重新查路由表。
 
-```plantuml
-@startuml
-skinparam backgroundColor white
-skinparam defaultFontSize 13
-
-rectangle "写入 utun fd" as A
-rectangle "内核按 rx 处理" as B
-diamond "目的 IP\n是本机?" as C
-rectangle "local input\n→ TCP 栈\n→ accept()" as D
-rectangle "forward 路径\n→ 查路由表\n→ 可能回到 utun" as E
-
-A -right-> B
-B -right-> C
-C -down-> D : 是 (198.18.0.1)
-C -right-> E : 否
-@enduml
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph LR
+    A["写入 utun fd"] --> B["内核按 rx 处理"]
+    B --> C{"目的 IP 是本机?"}
+    C -->|"是 (198.18.0.1)"| D["local input → TCP 栈 → accept()"]
+    C -->|"否"| E["forward 路径 → 查路由表 → 可能回到 utun"]
 ```
 
 ### 3.4 防回环 = 出站接口绑定
 
 mihomo 连接远程代理时创建的 `outFd`，若走默认路由选路，会再次命中 `0.0.0.0/1` 被 utun 抓住 → 死循环。
 
-```plantuml
-@startuml
-skinparam backgroundColor white
-skinparam defaultFontSize 13
-
-together {
-  rectangle "不绑接口 ✗" as box1 {
-    rectangle "outFd.connect\n(代理服务器)" as A1
-    rectangle "查路由表" as A2
-    rectangle "命中 0.0.0.0/1" as A3
-    rectangle "utun ✗ 死循环" as A4 #FFcccc
-
-    A1 -down-> A2
-    A2 -down-> A3
-    A3 -down-> A4
-  }
-
-  rectangle "绑定 en0 ✓" as box2 {
-    rectangle "outFd.connect\n(代理服务器)" as B1
-    rectangle "en0 物理网卡" as B2
-    rectangle "远程服务器 ✓" as B3 #ccFFcc
-
-    B1 -down-> B2 : IP_BOUND_IF=en0\n绕过路由表
-    B2 -down-> B3
-  }
-}
-@enduml
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph TD
+    subgraph "不绑接口 ✗"
+        A1["outFd.connect(代理服务器)"] --> A2["查路由表"]
+        A2 --> A3["命中 0.0.0.0/1"]
+        A3 --> A4["utun ✗ 死循环"]
+    end
+    subgraph "绑定 en0 ✓"
+        B1["outFd.connect(代理服务器)"] -->|"IP_BOUND_IF=en0<br/>绕过路由表"| B2["en0 物理网卡"]
+        B2 --> B3["远程服务器 ✓"]
+    end
 ```
 
 macOS 的机制是 `setsockopt(IP_BOUND_IF)`（IPv6 是 `IPV6_BOUND_IF`），按**接口索引**绑定，优先级高于路由表。Linux 对应 `SO_BINDTODEVICE`。
@@ -213,39 +156,25 @@ macOS 的机制是 `setsockopt(IP_BOUND_IF)`（IPv6 是 `IPV6_BOUND_IF`），按
 
 ## 4. 完整数据流
 
-```plantuml
-@startuml
-skinparam backgroundColor white
-skinparam defaultFontSize 13
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+graph TD
+    A["应用发起连接<br/>curl https://example.com"] --> B
+    B["内核路由表<br/>0.0.0.0/1 | 128.0.0.0/1 → utun"] --> C
+    C["utun 设备<br/>recvmsg_x 批量收包<br/>格式: 4B AF头 | IP头 | TCP/UDP头 | payload"] --> D
 
-rectangle "应用发起连接\ncurl https://example.com" as APP
-rectangle "内核路由表\n0.0.0.0/1 | 128.0.0.0/1 → utun" as ROUTE
-rectangle "utun 设备\nrecvmsg_x 批量收包\n格式: [4B AF头][IP头][TCP/UDP头][payload]" as TUN
+    D{"IP 栈处理"}
+    D -->|"System"| D1["NAT 改写 → 写回 utun → 内核 TCP → accept()"]
+    D -->|"gVisor"| D2["fdbased endpoint → 用户态 TCP/IP → 直接得到连接"]
+    D -->|"Mixed"| D3["TCP 走 System, UDP 走 gVisor"]
 
-diamond "IP 栈处理" as STACK
-rectangle "System: NAT 改写\n→ 写回 utun → 内核 TCP → accept()" as D1
-rectangle "gVisor: fdbased endpoint\n→ 用户态 TCP/IP → 直接得到连接" as D2
-rectangle "Mixed: TCP 走 System\nUDP 走 gVisor" as D3
+    D1 --> E
+    D2 --> E
+    D3 --> E
 
-rectangle "代理隧道\nDNS 劫持 · 进程识别 · 规则匹配" as TUNNEL
-rectangle "outFd\nsetsockopt(IP_BOUND_IF=en0)\n防回环" as OUT
-rectangle "物理网卡 en0\n→ 远程代理服务器" as REMOTE
-
-APP -down-> ROUTE
-ROUTE -down-> TUN
-TUN -down-> STACK
-
-STACK -down-> D1 : System
-STACK -down-> D2 : gVisor
-STACK -down-> D3 : Mixed
-
-D1 -down-> TUNNEL
-D2 -down-> TUNNEL
-D3 -down-> TUNNEL
-
-TUNNEL -down-> OUT
-OUT -down-> REMOTE
-@enduml
+    E["代理隧道<br/>DNS 劫持 · 进程识别 · 规则匹配"]
+    E --> F["outFd<br/>setsockopt IP_BOUND_IF=en0 防回环"]
+    F --> G["物理网卡 en0 → 远程代理服务器"]
 ```
 
 ## 参考资料
