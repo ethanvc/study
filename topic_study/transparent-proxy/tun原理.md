@@ -26,8 +26,8 @@
 ```mermaid
 %%{init: {'theme': 'neutral'}}%%
 graph TD
-    A[用户应用 (curl)<br/>connect 93.184.216.34:443] --> B
-    B["内核路由表 (mihomo 启动时注入)<br/>0.0.0.0/1 → 198.18.0.1 (utun0)<br/>128.0.0.0/1 → 198.18.0.1 (utun0)"]
+    A[用户应用 (curl) <br/> connect 93.184.216.34:443] --> B
+    B[内核路由表 (mihomo 启动时注入)<br/>0.0.0.0/1 → 198.18.0.1 (utun0)<br/>128.0.0.0/1 → 198.18.0.1 (utun0)]
     B -->|"最长前缀匹配，流量进入 utun"| C
     C["utun 虚拟网卡 (AF_SYSTEM fd)"]
     C -->|"recvmsg_x 读 IP 包"| D
@@ -55,13 +55,13 @@ graph TD
 
 从 utun 读出来的是 L3 原始 IP 包，但代理逻辑需要 L4 连接（TCP stream / UDP datagram）。三种方案：
 
-|          | System 栈           | gVisor 栈          | Mixed 栈            |
-| -------- | -------------------- | ------------------- | -------------------- |
-| TCP      | 内核 TCP (NAT 借用)  | 用户态 gVisor TCP   | 内核 TCP (NAT)       |
-| UDP      | 用户态直接解析       | 用户态 gVisor UDP   | 用户态 gVisor UDP    |
-| 穿 utun  | TCP 两次, UDP 一次   | 一次                | TCP 两次, UDP 一次   |
-| 复杂度   | NAT 表管理           | 架构简洁            | 两套并存             |
-| 性能     | TCP 强, 依赖内核优化 | UDP/短连接好        | 综合最优 (默认推荐)  |
+|         | System 栈            | gVisor 栈         | Mixed 栈            |
+| ------- | -------------------- | ----------------- | ------------------- |
+| TCP     | 内核 TCP (NAT 借用)  | 用户态 gVisor TCP | 内核 TCP (NAT)      |
+| UDP     | 用户态直接解析       | 用户态 gVisor UDP | 用户态 gVisor UDP   |
+| 穿 utun | TCP 两次, UDP 一次   | 一次              | TCP 两次, UDP 一次  |
+| 复杂度  | NAT 表管理           | 架构简洁          | 两套并存            |
+| 性能    | TCP 强, 依赖内核优化 | UDP/短连接好      | 综合最优 (默认推荐) |
 
 数据路径对比：
 
@@ -147,12 +147,12 @@ macOS 的机制是 `setsockopt(IP_BOUND_IF)`（IPv6 是 `IPV6_BOUND_IF`），按
 
 ### 3.5 附加能力
 
-| 能力           | 原理                                                                                  |
-| ------------ | ----------------------------------------------------------------------------------- |
-| **DNS 劫持**   | utun 地址的 next IP（如 `198.18.0.2:53`）自动加入劫持列表，匹配后交给内置 DNS 引擎                          |
+| 能力             | 原理                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| **DNS 劫持**     | utun 地址的 next IP（如 `198.18.0.2:53`）自动加入劫持列表，匹配后交给内置 DNS 引擎                |
 | **进程识别**     | `sysctl(net.inet.tcp.pcblist_n)` dump 内核 PCB 表，按源 IP/port 查 PID，再 `proc_info` 取进程路径 |
-| **网络变化监控**   | `AF_ROUTE` socket 常驻 `read`，收 `RTM_*` 消息触发回调（刷新接口缓存、重置 DNS）                         |
-| **Redir 模式** | 用 PF 防火墙 `rdr` 规则重定向 TCP，mihomo 通过 `DIOCNATLOOK` ioctl 向 `/dev/pf` 查询原始目标           |
+| **网络变化监控** | `AF_ROUTE` socket 常驻 `read`，收 `RTM_*` 消息触发回调（刷新接口缓存、重置 DNS）                  |
+| **Redir 模式**   | 用 PF 防火墙 `rdr` 规则重定向 TCP，mihomo 通过 `DIOCNATLOOK` ioctl 向 `/dev/pf` 查询原始目标      |
 
 ## 4. 完整数据流
 
